@@ -460,13 +460,145 @@ settings:
 	background-color: var(--chord-background-color, transparent);
 }
 
+.chord-sheet-strumming-pattern {
+	--strum-unit: 2ch;
+	position: relative;
+	display: inline-grid;
+	gap: 0;
+	margin: 0.25em 0;
+	font-family: var(--font-monospace);
+}
+
+.chord-sheet-strumming-beats,
+.chord-sheet-strumming-steps {
+	display: grid;
+	grid-template-columns: repeat(var(--strum-steps), var(--strum-unit));
+	text-align: center;
+}
+
+.chord-sheet-strumming-beats {
+	color: var(--text-muted);
+	font-size: 0.8em;
+}
+
+.chord-sheet-strumming-steps > span {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	grid-column: span var(--strum-duration);
+	padding: 0.15em 0 0;
+	background-color: var(--code-background);
+	color: var(--text-accent);
+}
+
+.chord-sheet-strum-head {
+	width: 1ch;
+	text-align: center;
+}
+
+.chord-sheet-strumming-repeat {
+	align-self: start;
+	margin-left: 1ch;
+	padding-top: 0.15em;
+	white-space: nowrap;
+	color: var(--text-muted);
+}
+
+.chord-sheet-strum-tail {
+	position: relative;
+	z-index: 1;
+	display: block;
+	width: var(--strum-tail-width);
+	max-width: none;
+	height: 0.8em;
+	margin-top: 0.1em;
+	overflow: visible;
+}
+
+.cm-line.chord-sheet-strumming-source {
+	padding-bottom: 0.9em;
+	overflow: visible;
+}
+
+.cm-content .chord-sheet-strum-step {
+	position: relative;
+	display: inline-block;
+	color: var(--text-accent);
+}
+
+.cm-content .chord-sheet-strum-tail-anchor {
+	position: relative;
+	display: inline-block;
+	width: 0;
+	height: 0;
+	color: var(--text-accent);
+	pointer-events: none;
+}
+
+.cm-content .chord-sheet-strum-tail-anchor svg {
+	position: absolute;
+	top: 0.15em;
+	left: -1ch;
+}
+
+.cm-content .chord-sheet-strum-hold {
+	color: var(--text-faint);
+}
+
+.chord-sheet-strum-head.is-playing,
+.cm-content .chord-sheet-strum-step.is-playing {
+	color: var(--text-normal);
+}
+
+.chord-sheet-strumming-controls {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25em;
+	margin-left: 0.5em;
+	color: var(--text-muted);
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-smaller);
+}
+
+.chord-sheet-strumming-play {
+	min-width: 1.8em;
+	height: 1.8em;
+	padding: 0;
+	vertical-align: middle;
+	line-height: 1;
+	color: var(--text-muted);
+}
+
+.chord-sheet-strumming-play.is-playing {
+	color: var(--text-normal);
+}
+
+.chord-sheet-strumming-bpm {
+	width: 4.5em;
+	height: 1.8em;
+	padding: 0 0.25em;
+}
+
+.chord-sheet-strumming-pattern > .chord-sheet-strumming-controls {
+	position: absolute;
+	top: 0;
+	left: 100%;
+}
+
+.chord-sheet-sub-setting {
+	margin-left: var(--size-4-4);
+}
+
 .chord-sheet-chord-name {
 	text-align: center;
 	font-family: var(--font-monospace);
 }
 
 .chord-sheet-chord-name.chord-sheet-chord-highlight {
-	color: var(--chord-highlight-color, var(--text-accent));
+	color: var(
+		--chord-note-color,
+		var(--chord-highlight-color, var(--text-accent))
+	);
 	font-weight: var(--chord-highlight-font-weight, bolder);
 }
 
@@ -499,12 +631,47 @@ code.chord-sheet-chord-block-preview {
 }
 
 .chord-sheet-section-header {
-	color: var(--section-header-title-color, var(--text-accent));
+	color: var(--section-header-title-color, var(--bold-color));
+	font-family: var(--font-monospace);
 }
 
 code.chord-sheet-chord-block-preview > .chord-sheet-section-header,
 .cm-s-obsidian .HyperMD-codeblock.chord-sheet-section-header {
 	font-size: var(--section-header-font-size, var(--code-size));
+}
+
+code.chord-sheet-chord-block-preview .chord-sheet-section-header-font-p,
+.cm-s-obsidian .HyperMD-codeblock.chord-sheet-section-header-font-p {
+	font-family: var(--font-text);
+	font-size: 1.1em;
+}
+
+code.chord-sheet-chord-block-preview .chord-sheet-section-header-font-h3,
+.cm-s-obsidian .HyperMD-codeblock.chord-sheet-section-header-font-h3 {
+	font-family: var(--h3-font, var(--font-text));
+	font-size: var(--h3-size, 1.5em);
+	font-weight: var(--h3-weight, 600);
+}
+
+code.chord-sheet-chord-block-preview .chord-sheet-section-header-font-h4,
+.cm-s-obsidian .HyperMD-codeblock.chord-sheet-section-header-font-h4 {
+	font-family: var(--h4-font, var(--font-text));
+	font-size: var(--h4-size, 1.25em);
+	font-weight: var(--h4-weight, 600);
+}
+
+code.chord-sheet-chord-block-preview .chord-sheet-section-header-font-h5,
+.cm-s-obsidian .HyperMD-codeblock.chord-sheet-section-header-font-h5 {
+	font-family: var(--h5-font, var(--font-text));
+	font-size: var(--h5-size, 1.1em);
+	font-weight: var(--h5-weight, 600);
+}
+
+code.chord-sheet-chord-block-preview .chord-sheet-section-header-font-h6,
+.cm-s-obsidian .HyperMD-codeblock.chord-sheet-section-header-font-h6 {
+	font-family: var(--h6-font, var(--font-text));
+	font-size: var(--h6-size, 1em);
+	font-weight: var(--h6-weight, 600);
 }
 
 .chord-sheet-section-header-content {
@@ -513,6 +680,7 @@ code.chord-sheet-chord-block-preview > .chord-sheet-section-header,
 
 .chord-sheet-section-header-name {
 	color: var(--section-header-title-color, var(--bold-color));
+	font-family: inherit;
 	font-weight: var(--section-header-title-font-weight, bolder);
 }
 
@@ -598,11 +766,20 @@ code.chord-sheet-chord-block-preview > .chord-sheet-section-header,
 }
 
 [class^=chord-sheet-btn] {
+	display: inline-flex;
+	align-items: center;
+	visibility: hidden;
 	color: var(--text-faint);
 	cursor: default;
 }
 
+[class^=chord-sheet-btn] svg {
+	width: 1em;
+	height: 1em;
+}
+
 .chord-sheet-pos-btn-enabled {
+	visibility: visible;
 	color: var(--link-color);
 	text-decoration: var(--link-decoration);
 	cursor: pointer;

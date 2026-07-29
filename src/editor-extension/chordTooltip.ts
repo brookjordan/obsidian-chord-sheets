@@ -1,40 +1,58 @@
-import tippy, {Instance} from "tippy.js";
-import {Instrument} from "../chordsUtils";
-import {makeChordDiagram} from "../chordDiagrams";
+import tippy, { Instance } from "tippy.js";
+import { Instrument } from "../chordsUtils";
+import {
+	ChordPositionSelections,
+	makeChordDiagram,
+} from "../chordDiagrams";
 
-import {ChordToken} from "../sheet-parsing/tokens";
+import { ChordToken } from "../sheet-parsing/tokens";
 
 export class ChordTooltip {
 	private readonly instance: Instance | null = null;
 	readonly popper: HTMLDivElement;
 
-
 	constructor(private containerEl: HTMLElement) {
 		this.popper = containerEl.createDiv({
-			cls: "chord-sheet-chord-popup"
+			cls: "chord-sheet-chord-popup",
 		});
 
-		this.instance = tippy(this.containerEl, { // Temporary target
-			trigger: 'manual', // We'll manually control show/hide,
+		this.instance = tippy(this.containerEl, {
+			// Temporary target
+			trigger: "manual", // We'll manually control show/hide,
 			interactive: true,
 			render: () => {
-				return {popper: this.popper};
-			}
+				return { popper: this.popper };
+			},
 		});
 	}
 
-	show(target: HTMLElement, instrument: Instrument, chordToken: ChordToken, diagramWidth: number): void { // Replace `any` with the correct type for `vexChord`
-		this.popper.appendChild(makeChordDiagram(instrument, chordToken, diagramWidth));
+	show(
+		target: HTMLElement,
+		instrument: Instrument,
+		chordToken: ChordToken,
+		diagramWidth: number,
+		useChromaticChordColors: boolean,
+		positionSelections: ChordPositionSelections,
+	): void {
+		this.popper.appendChild(
+			makeChordDiagram(
+				instrument,
+				chordToken,
+				diagramWidth,
+				0,
+				useChromaticChordColors,
+				positionSelections,
+			),
+		);
 
 		if (this.instance) {
 			this.instance.setProps({
-				getReferenceClientRect: () => target.getBoundingClientRect()
+				getReferenceClientRect: () => target.getBoundingClientRect(),
 			});
 
 			this.instance.show();
 		}
 	}
-
 
 	hide(): void {
 		if (this.instance) {

@@ -1,13 +1,25 @@
-import {chordSequenceString, Instrument, UserDefinedChord} from "./chordsUtils";
-import {INSTRUMENTS} from "./instruments";
-import {ChordBox} from "@chordbook/charts";
-import {ChordDef, generateChord} from "./chordGenerator";
-import {ChordToken} from "./sheet-parsing/tokens";
+import {
+	chromaticNoteColor,
+	chordSequenceString,
+	Instrument,
+	UserDefinedChord,
+} from "./chordsUtils";
+import { INSTRUMENTS } from "./instruments";
+import { ChordBox } from "@chordbook/charts";
+import { ChordDef, generateChord } from "./chordGenerator";
+import { ChordToken } from "./sheet-parsing/tokens";
 
 type ChordBoxParams = Parameters<ChordBox["draw"]>[0];
+export type ChordPositionSelections = Map<string, number>;
 
-export function dbChordToVexChord(input: ChordDef, positionIndex = 0): ChordBoxParams {
+export function dbChordToVexChord(
+	input: ChordDef,
+	positionIndex = 0,
+): ChordBoxParams {
 	const position = input.positions[positionIndex];
+	if (!position) {
+		throw new RangeError(`Chord position ${positionIndex} is unavailable`);
+	}
 	const fingers = [...position.fingers].reverse();
 	const frets = [...position.frets].reverse();
 
@@ -17,96 +29,122 @@ export function dbChordToVexChord(input: ChordDef, positionIndex = 0): ChordBoxP
 		const fromString = frets.lastIndexOf(barreFret) + 1;
 
 		if (fromString > 0 && toString > 0) {
-			barres.push({fromString, toString, fret: barreFret});
+			barres.push({ fromString, toString, fret: barreFret });
 		}
 	});
 
 	const chord = frets
-		.map((fret, index) => [index + 1, fret === -1 ? 'x' : fret] as [number, number])
-		.filter(c => !barres.some(barre => c[1] === barre.fret))
-	;
-
+		.map(
+			(fret, index) =>
+				[index + 1, fret === -1 ? "x" : fret] as [number, number],
+		)
+		.filter((c) => !barres.some((barre) => c[1] === barre.fret));
 	return {
 		chord,
 		position: position.baseFret,
 		barres,
 		// abuse tuning labels for fingering
-		tuning: [...fingers].reverse().map(finger => finger > 0 ? `${finger}` : '')
+		tuning: [...fingers]
+			.reverse()
+			.map((finger) => (finger > 0 ? `${finger}` : "")),
 	};
 }
 
-export function userDefinedToVexChord({frets, position}: UserDefinedChord, numStrings: number, defaultNumFrets: number = 4): ChordBoxParams & { numFrets: number } {
-	const splitFrets = /[\s,]/.test(frets) ? frets.match(/\d+|x|_/g) : frets.split('');
+export function userDefinedToVexChord(
+	{ frets, position }: UserDefinedChord,
+	numStrings: number,
+	defaultNumFrets: number = 4,
+): ChordBoxParams & { numFrets: number } {
+	const splitFrets = /[\s,]/.test(frets)
+		? frets.match(/\d+|x|_/g)
+		: frets.split("");
 
 	if (!splitFrets) {
 		throw new Error("Could not parse fret string: " + frets);
 	}
-
+	const stringFrets = splitFrets.filter((fretSymbol) => fretSymbol !== "_");
+	if (stringFrets.length !== numStrings) {
+		throw new RangeError(
+			`Expected ${numStrings} string frets, received ${stringFrets.length}`,
+		);
+	}
+	if (
+		!stringFrets.every(
+			(fretSymbol) => fretSymbol === "x" || /^\d+$/.test(fretSymbol),
+		)
+	) {
+		throw new Error(
+			"Fret strings may only contain x or non-negative integers",
+		);
+	}
 
 	const barres: ChordBoxParams["barres"] = [];
 
 	const barrePositions = splitFrets
-		.map((fret, index) => (fret === '_' ? index : -1))
-		.filter(index => index !== -1);
+		.map((fret, index) => (fret === "_" ? index : -1))
+		.filter((index) => index !== -1);
 
 	if (barrePositions.length === 2 || barrePositions.length === 4) {
 		barres.push({
 			fromString: numStrings - barrePositions[0],
 			toString: numStrings - barrePositions[1] + 2,
-			fret: parseInt(frets[barrePositions[0] + 1])
+			fret: parseBarreFret(splitFrets, barrePositions[0]),
 		});
 	}
 	if (barrePositions.length === 4) {
 		barres.push({
 			fromString: numStrings - barrePositions[2] + 2,
 			toString: numStrings - barrePositions[3] + 4,
-			fret: parseInt(frets[barrePositions[2] + 1])
+			fret: parseBarreFret(splitFrets, barrePositions[2]),
 		});
 	}
 
-
 	// map frets to chord array, skip barre markers
-	let chordFrets = splitFrets
-		.filter(fretSymbol => fretSymbol !== "_")
-		.map(
-			(fret, index) => [numStrings - index, fret === "x" ? "x" : parseInt(fret)]
-		);
-
+	let chordFrets = stringFrets.map((fret, index) => [
+		numStrings - index,
+		fret === "x" ? "x" : parseInt(fret),
+	]);
 
 	// determine optimal fret position
 	let finalPosition = position;
 	if (position === 0) {
 		const originalFrets = chordFrets
-			.map(fretDef => fretDef[1])
-			.filter(fret => typeof fret === 'number' && !isNaN(fret)) as number[];
-		
-		const nonOpenFrets = originalFrets.filter(fret => fret > 0);
+			.map((fretDef) => fretDef[1])
+			.filter(
+				(fret) => typeof fret === "number" && !isNaN(fret),
+			) as number[];
+
+		const nonOpenFrets = originalFrets.filter((fret) => fret > 0);
 		if (nonOpenFrets.length > 0) {
 			const minFret = Math.min(...nonOpenFrets);
 			const maxFret = Math.max(...nonOpenFrets);
 			const fretSpan = maxFret - minFret + 1;
-			
+
 			// if chord spans more than available frets, or starts above fret 3 (treat low frets with muted strings like open chords)
 			if (fretSpan > defaultNumFrets || minFret > 3) {
 				// position at minFret to show the most compact view
 				finalPosition = minFret;
-				chordFrets = chordFrets.map(fretDef =>
-					typeof fretDef[1] === 'number' && fretDef[1] > 0 ? [fretDef[0], fretDef[1] - finalPosition + 1] : fretDef
+				chordFrets = chordFrets.map((fretDef) =>
+					typeof fretDef[1] === "number" && fretDef[1] > 0
+						? [fretDef[0], fretDef[1] - finalPosition + 1]
+						: fretDef,
 				);
+				for (const barre of barres) {
+					barre.fret = barre.fret - finalPosition + 1;
+				}
 			}
 			// else: position remains 0
 		}
 	}
 
-
 	const finalFrets = chordFrets
-		.map(fretDef => fretDef[1])
-		.filter(fret => typeof fret === 'number' && !isNaN(fret)) as number[];
+		.map((fretDef) => fretDef[1])
+		.filter((fret) => typeof fret === "number" && !isNaN(fret)) as number[];
 
-
-	const numFrets = finalFrets.length > 0
-		? Math.max(defaultNumFrets, Math.max(...finalFrets))
-		: defaultNumFrets;
+	const numFrets =
+		finalFrets.length > 0
+			? Math.max(defaultNumFrets, Math.max(...finalFrets))
+			: defaultNumFrets;
 
 	return {
 		// @ts-ignore
@@ -115,20 +153,40 @@ export function userDefinedToVexChord({frets, position}: UserDefinedChord, numSt
 		barres,
 		numFrets,
 		// empty string labels so spacing is equal to non-custom chords with string labels
-		tuning: new Array(numStrings).fill('')
+		tuning: new Array(numStrings).fill(""),
 	};
 }
 
-export function renderChordDiagram({containerEl, userDefinedChord, chordDef, numPositions, position, numStrings, numFrets, chordName, width}: {
-	containerEl: HTMLElement,
-	userDefinedChord: UserDefinedChord | undefined,
-	chordDef: ChordDef,
-	numPositions: number,
-	position: number,
-	numStrings: number,
-	numFrets: number,
-	chordName: string,
-	width: number
+function parseBarreFret(splitFrets: string[], markerIndex: number): number {
+	const fret = Number(splitFrets[markerIndex + 1]);
+	if (!Number.isInteger(fret) || fret < 1) {
+		throw new Error("A barre marker must be followed by a fretted string");
+	}
+	return fret;
+}
+
+export function renderChordDiagram({
+	containerEl,
+	userDefinedChord,
+	chordDef,
+	numPositions,
+	position,
+	numStrings,
+	numFrets,
+	chordName,
+	chordColor,
+	width,
+}: {
+	containerEl: HTMLElement;
+	userDefinedChord: UserDefinedChord | undefined;
+	chordDef: ChordDef;
+	numPositions: number;
+	position: number;
+	numStrings: number;
+	numFrets: number;
+	chordName: string;
+	chordColor: string | null;
+	width: number;
 }) {
 	const box = containerEl.querySelector(".chord-sheet-chord-box");
 	if (!box) {
@@ -137,7 +195,7 @@ export function renderChordDiagram({containerEl, userDefinedChord, chordDef, num
 
 	box.replaceChildren();
 
-	box.appendChild(makeChordNameEl(chordName));
+	box.appendChild(makeChordNameEl(chordName, chordColor));
 
 	const chordDiagram = document.createElement("div");
 	box.appendChild(chordDiagram);
@@ -151,14 +209,26 @@ export function renderChordDiagram({containerEl, userDefinedChord, chordDef, num
 	updateChordPosition(containerEl, numPositions, position);
 }
 
-function makeChordNameEl(chordName: string) {
+function makeChordNameEl(chordName: string, chordColor: string | null) {
 	const chordNameEl = document.createElement("div");
-	chordNameEl.classList.add("chord-sheet-chord-name", "chord-sheet-chord-highlight");
+	chordNameEl.classList.add(
+		"chord-sheet-chord-name",
+		"chord-sheet-chord-highlight",
+	);
 	chordNameEl.innerText = chordName;
+	if (chordColor) {
+		chordNameEl.style.setProperty("--chord-note-color", chordColor);
+	}
 	return chordNameEl;
 }
 
-function makeChordBox(containerEl: HTMLElement, numStrings: number, numFrets: number, width: number, defaultColor = "var(--text-normal)") {
+function makeChordBox(
+	containerEl: HTMLElement,
+	numStrings: number,
+	numFrets: number,
+	width: number,
+	defaultColor = "var(--text-normal)",
+) {
 	return new ChordBox(containerEl, {
 		numStrings: numStrings,
 		numFrets: numFrets,
@@ -166,29 +236,52 @@ function makeChordBox(containerEl: HTMLElement, numStrings: number, numFrets: nu
 		defaultColor: defaultColor,
 		fontFamily: "var(--font-text)",
 		width: width,
-		height: width * 1.2
+		height: width * 1.2,
 	});
 }
 
-function renderMissingDiagramNotice(box: HTMLElement, chordName: string, numStrings: number, numFrets: number, width: number) {
+function renderMissingDiagramNotice(
+	box: HTMLElement,
+	chordName: string,
+	numStrings: number,
+	numFrets: number,
+	width: number,
+	chordColor: string | null,
+) {
 	const emptyFretboardEl = document.createElement("div");
 	emptyFretboardEl.classList.add("chord-sheet-no-diagram");
-	const fretboard = makeChordBox(emptyFretboardEl, numStrings, numFrets, width, "var(--text-faint)");
-	fretboard.draw({chord: [], tuning: new Array(numStrings).fill('')});
+	const fretboard = makeChordBox(
+		emptyFretboardEl,
+		numStrings,
+		numFrets,
+		width,
+		"var(--text-faint)",
+	);
+	fretboard.draw({ chord: [], tuning: new Array(numStrings).fill("") });
 
-	const gridCenterX = fretboard.x + fretboard.spacing * (fretboard.numStrings - 1) / 2;
-	const gridCenterY = fretboard.y + fretboard.fretSpacing * fretboard.numFrets / 2;
-	fretboard.canvas.plain("?")
-		.attr({x: gridCenterX, y: gridCenterY})
+	const gridCenterX =
+		fretboard.x + (fretboard.spacing * (fretboard.numStrings - 1)) / 2;
+	const gridCenterY =
+		fretboard.y + (fretboard.fretSpacing * fretboard.numFrets) / 2;
+	fretboard.canvas
+		.plain("?")
+		.attr({ x: gridCenterX, y: gridCenterY })
 		.addClass("chord-sheet-no-diagram-mark");
 
-	emptyFretboardEl.setAttribute("aria-label", `No diagram found for ${chordName}`);
+	emptyFretboardEl.setAttribute(
+		"aria-label",
+		`No diagram found for ${chordName}`,
+	);
 	emptyFretboardEl.setAttribute("data-tooltip-position", "top");
 
-	box.append(makeChordNameEl(chordName), emptyFretboardEl);
+	box.append(makeChordNameEl(chordName, chordColor), emptyFretboardEl);
 }
 
-function updateChordPosition(containerEl: HTMLElement, numPositions: number, position: number) {
+function updateChordPosition(
+	containerEl: HTMLElement,
+	numPositions: number,
+	position: number,
+) {
 	const positionEl = containerEl.querySelector(".chord-sheet-position");
 	const prevBtn = containerEl.querySelector(".chord-sheet-btn-prev-position");
 	const nextBtn = containerEl.querySelector(".chord-sheet-btn-next-position");
@@ -209,104 +302,186 @@ function updateChordPosition(containerEl: HTMLElement, numPositions: number, pos
 	}
 }
 
-export function makeChordDiagram(instrument: Instrument, chordToken: ChordToken, width = 100, position = 0) {
+function makeChevron(direction: "left" | "right"): SVGSVGElement {
+	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	svg.setAttribute("viewBox", "0 0 24 24");
+	svg.setAttribute("fill", "none");
+	svg.setAttribute("stroke", "currentColor");
+	svg.setAttribute("stroke-width", "3.5");
+	svg.setAttribute("stroke-linecap", "round");
+	svg.setAttribute("stroke-linejoin", "round");
+	svg.setAttribute("aria-hidden", "true");
+
+	const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+	path.setAttribute(
+		"d",
+		direction === "left" ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6",
+	);
+	svg.appendChild(path);
+	return svg;
+}
+
+export function makeChordDiagram(
+	instrument: Instrument,
+	chordToken: ChordToken,
+	width = 100,
+	position = 0,
+	useChromaticChordColors = true,
+	positionSelections?: ChordPositionSelections,
+) {
 	const containerEl = document.createElement("div");
 	containerEl.addClass("chord-sheet-chord-diagram");
-	const chordBox: HTMLDivElement = document.createElement('div');
+	const chordBox: HTMLDivElement = document.createElement("div");
 	chordBox.addClass("chord-sheet-chord-box");
 	containerEl.appendChild(chordBox);
 
 	const instrumentConfig = INSTRUMENTS[instrument];
 	const numStrings = instrumentConfig.strings;
 	const numFrets = instrumentConfig.fretsOnChord;
+	const chordColor = useChromaticChordColors
+		? chromaticNoteColor(chordToken.chord.tonic)
+		: null;
 
 	if (chordToken.chord.userDefinedChord !== undefined) {
-
-		const vexChord = userDefinedToVexChord(chordToken.chord.userDefinedChord, numStrings, numFrets);
+		const vexChord = userDefinedToVexChord(
+			chordToken.chord.userDefinedChord,
+			numStrings,
+			numFrets,
+		);
 
 		renderChordDiagram({
 			containerEl: containerEl,
 			userDefinedChord: chordToken.chord.userDefinedChord,
-			chordDef: {key: "", suffix: "", positions: []},
+			chordDef: { key: "", suffix: "", positions: [] },
 			numPositions: 1,
 			position: vexChord.position ?? 1,
 			numStrings: numStrings,
 			numFrets: vexChord.numFrets,
 			chordName: chordToken.chordSymbol.value,
-			width: width
+			chordColor,
+			width: width,
 		});
-	}
-	else {
+	} else {
 		const generatedChord = generateChord(chordToken, instrument);
 		if (!generatedChord) {
-			renderMissingDiagramNotice(chordBox, chordToken.chordSymbol.value, numStrings, numFrets, width);
+			renderMissingDiagramNotice(
+				chordBox,
+				chordToken.chordSymbol.value,
+				numStrings,
+				numFrets,
+				width,
+				chordColor,
+			);
 			return containerEl;
 		}
 
-		let currentPosition = position;
 		const numPositions = generatedChord.positions.length;
+		const savedPosition = positionSelections?.get(
+			chordToken.chordSymbol.value,
+		);
+		let currentPosition = Math.min(
+			Math.max(savedPosition ?? position, 0),
+			numPositions - 1,
+		);
 		if (numPositions > 0) {
-			const positionChooser = Object.assign(document.createElement('div'), {
-				className: "chord-sheet-position-chooser"
-			});
+			const positionChooser = Object.assign(
+				document.createElement("div"),
+				{
+					className: "chord-sheet-position-chooser",
+				},
+			);
 
-			const positionLabelSpan = Object.assign(document.createElement('span'), {
-				className: "chord-sheet-position-label",
-			});
+			const positionLabelSpan = Object.assign(
+				document.createElement("span"),
+				{
+					className: "chord-sheet-position-label",
+				},
+			);
 
-			const prevPositionSpan = Object.assign(document.createElement("span"), {
-				className: "chord-sheet-btn-prev-position",
-				textContent: "<"
-			});
+			const prevPositionSpan = Object.assign(
+				document.createElement("span"),
+				{
+					className: "chord-sheet-btn-prev-position",
+					ariaLabel: "Previous fingering",
+				},
+			);
+			prevPositionSpan.appendChild(makeChevron("left"));
 
 			const positionSpan = Object.assign(document.createElement("span"), {
-				className: "chord-sheet-position"
+				className: "chord-sheet-position",
 			});
-			const numPositionSpan = Object.assign(document.createElement("span"), {
-				textContent: `/${numPositions}`
-			});
+			const numPositionSpan = Object.assign(
+				document.createElement("span"),
+				{
+					textContent: `/${numPositions}`,
+				},
+			);
 			positionLabelSpan.append(positionSpan, numPositionSpan);
 
-			const nextPositionSpan = Object.assign(document.createElement("span"), {
-				className: "chord-sheet-btn-next-position",
-				textContent: ">"
-			});
+			const nextPositionSpan = Object.assign(
+				document.createElement("span"),
+				{
+					className: "chord-sheet-btn-next-position",
+					ariaLabel: "Next fingering",
+				},
+			);
+			nextPositionSpan.appendChild(makeChevron("right"));
 
-			positionChooser.append(prevPositionSpan, positionLabelSpan, nextPositionSpan);
+			positionChooser.append(
+				prevPositionSpan,
+				positionLabelSpan,
+				nextPositionSpan,
+			);
 			containerEl.appendChild(positionChooser);
 
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			const nextPositionButton = positionChooser.querySelector(".chord-sheet-btn-next-position")!;
+			const nextPositionButton = positionChooser.querySelector(
+				".chord-sheet-btn-next-position",
+			)!;
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			const prevPositionButton = positionChooser.querySelector(".chord-sheet-btn-prev-position")!;
+			const prevPositionButton = positionChooser.querySelector(
+				".chord-sheet-btn-prev-position",
+			)!;
 
 			nextPositionButton.addEventListener("click", () => {
 				if (currentPosition < numPositions - 1) {
+					currentPosition++;
+					positionSelections?.set(
+						chordToken.chordSymbol.value,
+						currentPosition,
+					);
 					renderChordDiagram({
 						containerEl: containerEl,
 						userDefinedChord: undefined,
 						chordDef: generatedChord,
 						numPositions: numPositions,
-						position: ++currentPosition,
+						position: currentPosition,
 						numStrings: numStrings,
 						numFrets: numFrets,
 						chordName: chordToken.chordSymbol.value,
-						width: width
+						chordColor,
+						width: width,
 					});
 				}
 			});
 			prevPositionButton.addEventListener("click", () => {
 				if (currentPosition > 0) {
+					currentPosition--;
+					positionSelections?.set(
+						chordToken.chordSymbol.value,
+						currentPosition,
+					);
 					renderChordDiagram({
 						containerEl: containerEl,
 						userDefinedChord: undefined,
 						chordDef: generatedChord,
 						numPositions: numPositions,
-						position: --currentPosition,
+						position: currentPosition,
 						numStrings: numStrings,
 						numFrets: numFrets,
 						chordName: chordToken.chordSymbol.value,
-						width: width
+						chordColor,
+						width: width,
 					});
 				}
 			});
@@ -317,22 +492,40 @@ export function makeChordDiagram(instrument: Instrument, chordToken: ChordToken,
 			userDefinedChord: undefined,
 			chordDef: generatedChord,
 			numPositions: numPositions,
-			position: position,
+			position: currentPosition,
 			numStrings: numStrings,
 			numFrets: numFrets,
 			chordName: chordToken.chordSymbol.value,
-			width: width
+			chordColor,
+			width: width,
 		});
 	}
 
 	return containerEl;
 }
 
-export function makeChordOverview(instrument: Instrument, container: HTMLElement, chordTokens: ChordToken[], width?: number) {
+export function makeChordOverview(
+	instrument: Instrument,
+	container: HTMLElement,
+	chordTokens: ChordToken[],
+	width?: number,
+	useChromaticChordColors = true,
+	positionSelections?: ChordPositionSelections,
+) {
 	for (const chordToken of chordTokens) {
-		container.appendChild(makeChordDiagram(instrument, chordToken, width));
+		container.appendChild(
+			makeChordDiagram(
+				instrument,
+				chordToken,
+				width,
+				0,
+				useChromaticChordColors,
+				positionSelections,
+			),
+		);
 	}
 	container.dataset.chordSequence = chordSequenceString(chordTokens);
 	container.dataset.instrument = instrument;
 	container.dataset.diagramWidth = `${width}`;
+	container.dataset.chromaticChordColors = `${useChromaticChordColors}`;
 }

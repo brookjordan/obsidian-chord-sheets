@@ -1,17 +1,25 @@
-import {EditorView, WidgetType} from "@codemirror/view";
-import {chordSequenceString, Instrument, uniqueChordTokens} from "../chordsUtils";
-import {makeChordOverview} from "../chordDiagrams";
+import { EditorView, WidgetType } from "@codemirror/view";
+import {
+	chordSequenceString,
+	Instrument,
+	uniqueChordTokens,
+} from "../chordsUtils";
+import {
+	ChordPositionSelections,
+	makeChordOverview,
+} from "../chordDiagrams";
 
-import {ChordToken} from "../sheet-parsing/tokens";
+import { ChordToken } from "../sheet-parsing/tokens";
 
 export class ChordOverviewWidget extends WidgetType {
-
 	private readonly chordSequenceString: string;
 	public readonly uniqueChordTokens: ChordToken[];
 
 	constructor(
 		private instrument: Instrument,
 		private diagramWidth: number,
+		private useChromaticChordColors: boolean,
+		private positionSelections: ChordPositionSelections,
 		chordTokens: ChordToken[],
 	) {
 		super();
@@ -28,10 +36,15 @@ export class ChordOverviewWidget extends WidgetType {
 	}
 
 	eq(other: ChordOverviewWidget): boolean {
-		return this.instrument === other.instrument
-			&& this.diagramWidth === other.diagramWidth
-			&& this.uniqueChordTokens.length === other.uniqueChordTokens.length
-			&& this.uniqueChordTokens.every((value, index) => value === other.uniqueChordTokens[index]);
+		return (
+			this.instrument === other.instrument &&
+			this.diagramWidth === other.diagramWidth &&
+			this.useChromaticChordColors === other.useChromaticChordColors &&
+			this.uniqueChordTokens.length === other.uniqueChordTokens.length &&
+			this.uniqueChordTokens.every(
+				(value, index) => value === other.uniqueChordTokens[index],
+			)
+		);
 	}
 
 	updateDOM(dom: HTMLElement, view: EditorView): boolean {
@@ -39,14 +52,18 @@ export class ChordOverviewWidget extends WidgetType {
 		const {
 			chordSequence: previousChordSequence,
 			instrument: previousInstrument,
-			diagramWidth: previousDiagramWidth
+			diagramWidth: previousDiagramWidth,
+			chromaticChordColors: previousChromaticChordColors,
 		} = chordOverview.dataset;
 
-		const previousDiagramWidthInt = previousDiagramWidth ? parseInt(previousDiagramWidth) : 0;
+		const previousDiagramWidthInt = previousDiagramWidth
+			? parseInt(previousDiagramWidth)
+			: 0;
 		if (
-			this.chordSequenceString !== previousChordSequence
-			|| this.instrument !== previousInstrument
-			|| this.diagramWidth !== previousDiagramWidthInt
+			this.chordSequenceString !== previousChordSequence ||
+			this.instrument !== previousInstrument ||
+			this.diagramWidth !== previousDiagramWidthInt ||
+			`${this.useChromaticChordColors}` !== previousChromaticChordColors
 		) {
 			this.updateChordOverview(chordOverview);
 			view.requestMeasure();
@@ -57,10 +74,10 @@ export class ChordOverviewWidget extends WidgetType {
 
 	toDOM(view: EditorView): HTMLElement {
 		const el = Object.assign(document.createElement("div"), {
-			className: "chord-sheet-chord-overview-container"
+			className: "chord-sheet-chord-overview-container",
 		});
 		const chordOverviewEl = Object.assign(document.createElement("div"), {
-			className: "chord-sheet-chord-overview chord-sheet-preview-mode"
+			className: "chord-sheet-chord-overview chord-sheet-preview-mode",
 		});
 		el.append(chordOverviewEl);
 
@@ -69,9 +86,19 @@ export class ChordOverviewWidget extends WidgetType {
 		return el;
 	}
 
-	private updateChordOverview(chordOverview: HTMLElement, instrument: Instrument = this.instrument) {
+	private updateChordOverview(
+		chordOverview: HTMLElement,
+		instrument: Instrument = this.instrument,
+	) {
 		chordOverview.replaceChildren();
-		makeChordOverview(instrument, chordOverview, this.uniqueChordTokens, this.diagramWidth);
+		makeChordOverview(
+			instrument,
+			chordOverview,
+			this.uniqueChordTokens,
+			this.diagramWidth,
+			this.useChromaticChordColors,
+			this.positionSelections,
+		);
 	}
 
 	private getChordOverviewEl(el: HTMLElement): HTMLElement {

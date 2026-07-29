@@ -1,6 +1,12 @@
-import {App, debounce, PluginSettingTab, Setting, TextComponent} from "obsidian";
-import {Instrument} from "./chordsUtils";
-import {AUTOSCROLL_STEPS} from "./autoscrollControl";
+import {
+	App,
+	debounce,
+	PluginSettingTab,
+	Setting,
+	TextComponent,
+} from "obsidian";
+import { Instrument } from "./chordsUtils";
+import { AUTOSCROLL_STEPS } from "./autoscrollControl";
 import {
 	ChordSheetsSettings,
 	DEFAULT_BLOCK_LANGUAGE_SPECIFIER,
@@ -8,9 +14,10 @@ import {
 	DEFAULT_TEXT_LINE_MARKER,
 	ShowAutoscrollButtonSetting,
 	ShowChordDiagramsOnHoverSetting,
-	ShowChordOverviewSetting
+	ShowChordOverviewSetting,
+	SectionHeaderFontSetting,
 } from "./chordSheetsSettings";
-import {IChordSheetsPlugin} from "./chordSheetsPluginInterface";
+import { IChordSheetsPlugin } from "./chordSheetsPluginInterface";
 
 export class ChordSheetsSettingTab extends PluginSettingTab {
 	plugin: IChordSheetsPlugin;
@@ -21,45 +28,59 @@ export class ChordSheetsSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
 		const chordOverviewOptions: Record<ShowChordOverviewSetting, string> = {
-			"never": "Never",
-			"edit": "In edit mode",
-			"preview": "In reading mode",
-			"always": "Always"
+			never: "Never",
+			edit: "In edit mode",
+			preview: "In reading mode",
+			always: "Always",
 		};
 		new Setting(containerEl)
-			.setName('Show chord overview')
-			.setDesc('Show an overview of chord diagrams above chord blocks. Might impact performance for very (!) long documents.')
-			.addDropdown(dropdown => dropdown
-				.addOptions(chordOverviewOptions)
-				.setValue(this.plugin.settings.showChordOverview)
-				.onChange(async (value: ShowChordOverviewSetting) => {
-					this.plugin.settings.showChordOverview = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
+			.setName("Show chord overview")
+			.setDesc(
+				"Show an overview of chord diagrams above chord blocks. Might impact performance for very (!) long documents.",
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOptions(chordOverviewOptions)
+					.setValue(this.plugin.settings.showChordOverview)
+					.onChange(async (value: ShowChordOverviewSetting) => {
+						this.plugin.settings.showChordOverview = value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
 
-		const hoverChordDiagramsOptions: Record<ShowChordDiagramsOnHoverSetting, string> = {
-			"never": "Never",
-			"edit": "In edit mode",
-			"preview": "In reading mode",
-			"always": "Always"
+		const hoverChordDiagramsOptions: Record<
+			ShowChordDiagramsOnHoverSetting,
+			string
+		> = {
+			never: "Never",
+			edit: "In edit mode",
+			preview: "In reading mode",
+			always: "Always",
 		};
 		new Setting(containerEl)
-			.setName('Show chord diagrams on hover')
-			.setDesc('Show a chord diagram popup when the mouse hovers over a chord.')
-			.addDropdown(dropdown => dropdown
-				.addOptions(hoverChordDiagramsOptions)
-				.setValue(this.plugin.settings.showChordDiagramsOnHover)
-				.onChange(async (value: ShowChordDiagramsOnHoverSetting) => {
-					this.plugin.settings.showChordDiagramsOnHover = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
+			.setName("Show chord diagrams on hover")
+			.setDesc(
+				"Show a chord diagram popup when the mouse hovers over a chord.",
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOptions(hoverChordDiagramsOptions)
+					.setValue(this.plugin.settings.showChordDiagramsOnHover)
+					.onChange(
+						async (value: ShowChordDiagramsOnHoverSetting) => {
+							this.plugin.settings.showChordDiagramsOnHover =
+								value;
+							await this.plugin.saveSettings();
+							this.plugin.applyNewSettingsToEditors();
+						},
+					),
+			);
 
 		const debouncedChangeDiagramSize = debounce(async (value: number) => {
 			this.plugin.settings.diagramWidth = value;
@@ -67,103 +88,196 @@ export class ChordSheetsSettingTab extends PluginSettingTab {
 			this.plugin.applyNewSettingsToEditors();
 		}, 500);
 		new Setting(containerEl)
-			.setName('Chord diagram size')
-			.addSlider(slider => slider
-				.setLimits(50, 150, 1)
-				.setValue(this.plugin.settings.diagramWidth)
-				.setDynamicTooltip()
-				.onChange(value => debouncedChangeDiagramSize(value)));
+			.setName("Chord diagram size")
+			.addSlider((slider) =>
+				slider
+					.setLimits(50, 150, 1)
+					.setValue(this.plugin.settings.diagramWidth)
+					.setDynamicTooltip()
+					.onChange((value) => debouncedChangeDiagramSize(value)),
+			);
 
 		const defaultInstrumentDescFrag = createFragment();
 		const defaultInstrumentDescEl = defaultInstrumentDescFrag.createSpan();
-		defaultInstrumentDescEl.append(`
+		defaultInstrumentDescEl.append(
+			`
 			Determines the musical instrument used for rendering chord diagrams when none is explicitly specified.
 			For example, if a chord block starts with`,
 			createEl("code", { text: "```chords" }),
 			`without an instrument like `,
 			createEl("code", { text: "```chords-guitar" }),
 			`, the default instrument you set here will be used.
-		`);
+		`,
+		);
 		new Setting(containerEl)
-			.setName('Default instrument')
+			.setName("Default instrument")
 			.setDesc(defaultInstrumentDescFrag)
-			.addDropdown(dropdown => dropdown
-				.addOption("guitar", "Guitar")
-				.addOption("ukulele", "Ukulele")
-				.addOption("ukulele-d-tuning", "Ukulele (D tuning)")
-				.addOption("ukulele-baritone", "Ukulele (Baritone)")
-				.addOption("mandolin", "Mandolin")
-				.setValue(this.plugin.settings.defaultInstrument)
-				.onChange(async (value: Instrument) => {
-					this.plugin.settings.defaultInstrument = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption("guitar", "Guitar")
+					.addOption("ukulele", "Ukulele")
+					.addOption("ukulele-d-tuning", "Ukulele (D tuning)")
+					.addOption("ukulele-baritone", "Ukulele (Baritone)")
+					.addOption("mandolin", "Mandolin")
+					.setValue(this.plugin.settings.defaultInstrument)
+					.onChange(async (value: Instrument) => {
+						this.plugin.settings.defaultInstrument = value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
 
-
-		new Setting(containerEl).setName('Highlighting').setHeading();
+		new Setting(containerEl).setName("Highlighting").setHeading();
 
 		new Setting(containerEl)
-			.setName('Highlight chord symbols')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.highlightChords)
-				.onChange(async (value) => {
-					this.plugin.settings.highlightChords = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
+			.setName("Highlight chord symbols")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.highlightChords)
+					.onChange(async (value) => {
+						this.plugin.settings.highlightChords = value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Use chromatic chord colors")
+			.setDesc(
+				"Color chord names by tonic. Disable to use your theme accent color.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.useChromaticChordColors)
+					.onChange(async (value) => {
+						this.plugin.settings.useChromaticChordColors = value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
 
 		const highlightSectionHeadersDescFrag = createFragment();
-		const highlightSectionHeadersDescEl = highlightSectionHeadersDescFrag.createSpan();
+		const highlightSectionHeadersDescEl =
+			highlightSectionHeadersDescFrag.createSpan();
 		highlightSectionHeadersDescEl.append(
-			`Section headers must be in square brackets and on their own line, such as:`,
+			`Highlight standalone section titles such as `,
 			createEl("br"),
-			createEl("code", { text: "[Verse 1]" })
+			createEl("code", { text: "[Verse 1]" }),
+			` or `,
+			createEl("code", { text: "Verse 1" }),
+			`.`,
 		);
-		highlightSectionHeadersDescFrag.appendChild(highlightSectionHeadersDescEl);
+		highlightSectionHeadersDescFrag.appendChild(
+			highlightSectionHeadersDescEl,
+		);
 
+		let autoDetectSectionHeadersSetting: Setting;
+		let sectionHeaderFontSetting: Setting;
+		const setSectionHeaderOptionsVisible = (visible: boolean) => {
+			autoDetectSectionHeadersSetting.settingEl.style.display = visible
+				? ""
+				: "none";
+			sectionHeaderFontSetting.settingEl.style.display = visible
+				? ""
+				: "none";
+		};
 		new Setting(containerEl)
-			.setName('Highlight section headers')
+			.setName("Highlight section headers")
 			.setDesc(highlightSectionHeadersDescFrag)
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.highlightSectionHeaders)
-				.onChange(async (value) => {
-					this.plugin.settings.highlightSectionHeaders = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.highlightSectionHeaders)
+					.onChange(async (value) => {
+						this.plugin.settings.highlightSectionHeaders = value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+						setSectionHeaderOptionsVisible(value);
+					}),
+			);
+
+		autoDetectSectionHeadersSetting = new Setting(containerEl)
+			.setName("Only within brackets")
+			.setDesc(
+				"Require square brackets around section titles, such as [Verse 1].",
+			)
+			.addToggle((toggle) => {
+				return toggle
+					.setValue(!this.plugin.settings.autoDetectSectionHeaders)
+					.onChange(async (value) => {
+						this.plugin.settings.autoDetectSectionHeaders = !value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					});
+			});
+		autoDetectSectionHeadersSetting.settingEl.addClass(
+			"chord-sheet-sub-setting",
+		);
+
+		sectionHeaderFontSetting = new Setting(containerEl)
+			.setName("Section header font")
+			.setDesc("Use the matching typography from your active theme.")
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOptions({
+						mono: "Monospace",
+						p: "Paragraph",
+						h3: "Heading 3",
+						h4: "Heading 4",
+						h5: "Heading 5",
+						h6: "Heading 6",
+					})
+					.setValue(this.plugin.settings.sectionHeaderFont)
+					.onChange(async (value: SectionHeaderFontSetting) => {
+						this.plugin.settings.sectionHeaderFont = value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
+		sectionHeaderFontSetting.settingEl.addClass("chord-sheet-sub-setting");
+		setSectionHeaderOptionsVisible(
+			this.plugin.settings.highlightSectionHeaders,
+		);
 
 		const highlightRhythmMarkersDescFrag = createFragment();
-		const highlightRhythmMarkersDescEl = highlightRhythmMarkersDescFrag.createSpan();
+		const highlightRhythmMarkersDescEl =
+			highlightRhythmMarkersDescFrag.createSpan();
 		highlightRhythmMarkersDescEl.append(
 			`Highlight rhythm markers sometimes used in chord sheets such as in:`,
 			createEl("br"),
-			createEl("code", { text: "| C C/B | Am C/G | F Bb | C | % |" })
+			createEl("code", { text: "| C C/B | Am C/G | F Bb | C | % |" }),
 		);
-		highlightRhythmMarkersDescFrag.appendChild(highlightRhythmMarkersDescEl);
+		highlightRhythmMarkersDescFrag.appendChild(
+			highlightRhythmMarkersDescEl,
+		);
 
 		new Setting(containerEl)
-			.setName('Highlight rhythm markers')
+			.setName("Highlight rhythm markers")
 			.setDesc(highlightRhythmMarkersDescFrag)
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.highlightRhythmMarkers)
-				.onChange(async (value) => {
-					this.plugin.settings.highlightRhythmMarkers = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.highlightRhythmMarkers)
+					.onChange(async (value) => {
+						this.plugin.settings.highlightRhythmMarkers = value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
 
-		new Setting(containerEl).setName('Reading mode').setHeading();
+		new Setting(containerEl).setName("Reading mode").setHeading();
 
 		new Setting(containerEl)
-			.setName('Display inline/ChordPro-style chords over lyrics')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.displayInlineChordsOverLyrics)
-				.onChange(async (value) => {
-					this.plugin.settings.displayInlineChordsOverLyrics = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				})
+			.setName("Display inline/ChordPro-style chords over lyrics")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(
+						this.plugin.settings.displayInlineChordsOverLyrics,
+					)
+					.onChange(async (value) => {
+						this.plugin.settings.displayInlineChordsOverLyrics =
+							value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
 			);
 
 		const showLineMarkersDescFrag = createFragment();
@@ -173,75 +287,94 @@ export class ChordSheetsSettingTab extends PluginSettingTab {
 			createEl("code", { text: "%c" }),
 			`, `,
 			createEl("code", { text: "%t" }),
-			`) in reading mode. When off, markers are still parsed but hidden from the rendered output.`
+			`) in reading mode. When off, markers are still parsed but hidden from the rendered output.`,
 		);
 		showLineMarkersDescFrag.appendChild(showLineMarkersDescEl);
 
 		new Setting(containerEl)
-			.setName('Show line markers in reading mode')
+			.setName("Show line markers in reading mode")
 			.setDesc(showLineMarkersDescFrag)
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.showLineMarkersInReadingMode)
-				.onChange(async (value) => {
-					this.plugin.settings.showLineMarkersInReadingMode = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
-
-
-		new Setting(containerEl).setName('Live preview / edit mode').setHeading();
-
-		new Setting(containerEl)
-			.setName('Show transpose control')
-			.setDesc('Transpose all chords in a chord block up or down with the click of a button.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.showTransposeControl)
-				.onChange(async (value) => {
-					this.plugin.settings.showTransposeControl = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showLineMarkersInReadingMode)
+					.onChange(async (value) => {
+						this.plugin.settings.showLineMarkersInReadingMode =
+							value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
 
 		new Setting(containerEl)
-			.setName('Show instrument control')
-			.setDesc('Control for changing the instrument of a chord block. Chord diagrams will be rendered for the chosen instrument.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.showInstrumentControl)
-				.onChange(async (value) => {
-					this.plugin.settings.showInstrumentControl = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
+			.setName("Live preview / edit mode")
+			.setHeading();
 
 		new Setting(containerEl)
-			.setName('Show enharmonic toggle control')
-			.setDesc('Toggles chords between sharp (#) and flat (b) enharmonic equivalents.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.showEnharmonicToggleControl)
-				.onChange(async (value) => {
-					this.plugin.settings.showEnharmonicToggleControl = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
-
-
-		new Setting(containerEl).setName('Autoscroll').setHeading();
+			.setName("Show transpose control")
+			.setDesc(
+				"Transpose all chords in a chord block up or down with the click of a button.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showTransposeControl)
+					.onChange(async (value) => {
+						this.plugin.settings.showTransposeControl = value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
 
 		new Setting(containerEl)
-			.setName('Autoscroll default speed')
-			.addSlider(slider => slider
-				.setLimits(1, AUTOSCROLL_STEPS, 1)
-				.setValue(this.plugin.settings.autoscrollDefaultSpeed)
-				.setDynamicTooltip()
-				.onChange(async value => {
-					this.plugin.settings.autoscrollDefaultSpeed = value;
-					await this.plugin.saveSettings();
-				})
+			.setName("Show instrument control")
+			.setDesc(
+				"Control for changing the instrument of a chord block. Chord diagrams will be rendered for the chosen instrument.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showInstrumentControl)
+					.onChange(async (value) => {
+						this.plugin.settings.showInstrumentControl = value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Show enharmonic toggle control")
+			.setDesc(
+				"Toggles chords between sharp (#) and flat (b) enharmonic equivalents.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showEnharmonicToggleControl)
+					.onChange(async (value) => {
+						this.plugin.settings.showEnharmonicToggleControl =
+							value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
+
+		new Setting(containerEl).setName("Autoscroll").setHeading();
+
+		new Setting(containerEl)
+			.setName("Autoscroll default speed")
+			.addSlider((slider) =>
+				slider
+					.setLimits(1, AUTOSCROLL_STEPS, 1)
+					.setValue(this.plugin.settings.autoscrollDefaultSpeed)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.autoscrollDefaultSpeed = value;
+						await this.plugin.saveSettings();
+					}),
 			);
 
 		const alwaysSaveAutoscrollSpeedDescFrag = createFragment();
-		const alwaysSaveAutoscrollSpeedDescEl = alwaysSaveAutoscrollSpeedDescFrag.createSpan();
-		alwaysSaveAutoscrollSpeedDescEl.append(`
+		const alwaysSaveAutoscrollSpeedDescEl =
+			alwaysSaveAutoscrollSpeedDescFrag.createSpan();
+		alwaysSaveAutoscrollSpeedDescEl.append(
+			`
 			The plugin can read the autoscroll speed for a note from the`,
 			createEl("code", { text: "autoscroll-speed" }),
 			`property.`,
@@ -250,44 +383,55 @@ export class ChordSheetsSettingTab extends PluginSettingTab {
 			already present. Enable this setting to ensure any changes to the speed are automatically saved to the 
 			frontmatter, adding the `,
 			createEl("code", { text: "autoscroll-speed" }),
-			` property if absent.`
+			` property if absent.`,
 		);
 
 		new Setting(containerEl)
-			.setName('Always save autoscroll speed to frontmatter')
+			.setName("Always save autoscroll speed to frontmatter")
 			.setDesc(alwaysSaveAutoscrollSpeedDescFrag)
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.alwaysSaveAutoscrollSpeedToFrontmatter)
-				.onChange(async value => {
-					this.plugin.settings.alwaysSaveAutoscrollSpeedToFrontmatter = value;
-					await this.plugin.saveSettings();
-				})
+			.addToggle((toggle) =>
+				toggle
+					.setValue(
+						this.plugin.settings
+							.alwaysSaveAutoscrollSpeedToFrontmatter,
+					)
+					.onChange(async (value) => {
+						this.plugin.settings.alwaysSaveAutoscrollSpeedToFrontmatter =
+							value;
+						await this.plugin.saveSettings();
+					}),
 			);
 
-		const showAutoscrollButtonOptions: Record<ShowAutoscrollButtonSetting, string> = {
+		const showAutoscrollButtonOptions: Record<
+			ShowAutoscrollButtonSetting,
+			string
+		> = {
 			never: "Never",
 			"chord-blocks": "When note has chord blocks",
-			always: "Always"
+			always: "Always",
 		};
 		new Setting(containerEl)
-			.setName('Show autoscroll view action button')
-			.setDesc('Set to \'Always\' if you want to use autoscroll for all documents or \'Never\' if you don\'t want to use autoscroll.')
-			.addDropdown(dropdown => dropdown
-				.addOptions(showAutoscrollButtonOptions)
-				.setValue(this.plugin.settings.showAutoscrollButton)
-				.onChange(async (value: ShowAutoscrollButtonSetting) => {
-					this.plugin.stopAllAutoscrolls();
-					this.plugin.settings.showAutoscrollButton = value;
-					await this.plugin.saveSettings();
-				})
+			.setName("Show autoscroll view action button")
+			.setDesc(
+				"Set to 'Always' if you want to use autoscroll for all documents or 'Never' if you don't want to use autoscroll.",
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOptions(showAutoscrollButtonOptions)
+					.setValue(this.plugin.settings.showAutoscrollButton)
+					.onChange(async (value: ShowAutoscrollButtonSetting) => {
+						this.plugin.stopAllAutoscrolls();
+						this.plugin.settings.showAutoscrollButton = value;
+						await this.plugin.saveSettings();
+					}),
 			);
 
-		new Setting(containerEl).setName('Chord block syntax').setHeading();
-
+		new Setting(containerEl).setName("Chord block syntax").setHeading();
 
 		const languageSpecifierDescFrag = createFragment();
 		const languageSpecifierDescEl = languageSpecifierDescFrag.createSpan();
-		languageSpecifierDescEl.append(`
+		languageSpecifierDescEl.append(
+			`
 			The block language specifier defines the keyword for identifying chord blocks. 
   			For example, using "chords" means blocks starting with `,
 			createEl("code", { text: "```chords" }),
@@ -298,92 +442,150 @@ export class ChordSheetsSettingTab extends PluginSettingTab {
 			createEl("br"),
 			`Only lowercase characters `,
 			createEl("code", { text: "a-z" }),
-			`are allowed.`
+			`are allowed.`,
 		);
 		languageSpecifierDescFrag.appendChild(languageSpecifierDescEl);
 		new Setting(containerEl)
-			.setName('Block language specifier')
+			.setName("Block language specifier")
 			.setDesc(languageSpecifierDescFrag)
-			.addText(text => text
-				.setValue(this.plugin.settings.blockLanguageSpecifier === DEFAULT_BLOCK_LANGUAGE_SPECIFIER ? "" : this.plugin.settings.blockLanguageSpecifier)
-				.setPlaceholder(DEFAULT_BLOCK_LANGUAGE_SPECIFIER)
-				.onChange(async value => await this.handleSyntaxSettingChange(
-					"blockLanguageSpecifier", value, text, DEFAULT_BLOCK_LANGUAGE_SPECIFIER, /^[a-z]+$/
-				))
+			.addText((text) =>
+				text
+					.setValue(
+						this.plugin.settings.blockLanguageSpecifier ===
+							DEFAULT_BLOCK_LANGUAGE_SPECIFIER
+							? ""
+							: this.plugin.settings.blockLanguageSpecifier,
+					)
+					.setPlaceholder(DEFAULT_BLOCK_LANGUAGE_SPECIFIER)
+					.onChange(
+						async (value) =>
+							await this.handleSyntaxSettingChange(
+								"blockLanguageSpecifier",
+								value,
+								text,
+								DEFAULT_BLOCK_LANGUAGE_SPECIFIER,
+								/^[a-z]+$/,
+							),
+					),
 			);
 
 		const chordLineMarkerDescFrag = createFragment();
 		const chordLineMarkerDescEl = chordLineMarkerDescFrag.createSpan();
-		chordLineMarkerDescEl.append(`
+		chordLineMarkerDescEl.append(
+			`
 			Force detection of a line as a chord line when the plugin has mistakenly detected it as a text line.`,
 			createEl("br"),
-			`For example, using `, createEl("code", { text: "%c" }),`means a line such as `, createEl("br"),
-			createEl("code", { text: "Am G F (a comment that breaks chord detection) C   %c" }), createEl("br"),
+			`For example, using `,
+			createEl("code", { text: "%c" }),
+			`means a line such as `,
+			createEl("br"),
+			createEl("code", {
+				text: "Am G F (a comment that breaks chord detection) C   %c",
+			}),
+			createEl("br"),
 			`will force chord detection and highlighting for this line.`,
 			createEl("br"),
 			createEl("br"),
 			`The marker must appear on the end of a line and seperated by one or more spaces from preceding line content. 
-			It cannot contain spaces.`
+			It cannot contain spaces.`,
 		);
 		chordLineMarkerDescFrag.appendChild(chordLineMarkerDescEl);
 		new Setting(containerEl)
-			.setName('Chord line marker')
+			.setName("Chord line marker")
 			.setDesc(chordLineMarkerDescFrag)
-			.addText(text => text
-				.setValue(this.plugin.settings.chordLineMarker === DEFAULT_CHORD_LINE_MARKER ? "" : this.plugin.settings.chordLineMarker)
-				.setPlaceholder(DEFAULT_CHORD_LINE_MARKER)
-				.onChange(async value => await this.handleSyntaxSettingChange(
-					"chordLineMarker", value, text, DEFAULT_CHORD_LINE_MARKER, /^\S+$/
-				))
+			.addText((text) =>
+				text
+					.setValue(
+						this.plugin.settings.chordLineMarker ===
+							DEFAULT_CHORD_LINE_MARKER
+							? ""
+							: this.plugin.settings.chordLineMarker,
+					)
+					.setPlaceholder(DEFAULT_CHORD_LINE_MARKER)
+					.onChange(
+						async (value) =>
+							await this.handleSyntaxSettingChange(
+								"chordLineMarker",
+								value,
+								text,
+								DEFAULT_CHORD_LINE_MARKER,
+								/^\S+$/,
+							),
+					),
 			);
 
 		const textLineMarkerDescFrag = createFragment();
 		const textLineMarkerDescEl = textLineMarkerDescFrag.createSpan();
-		textLineMarkerDescEl.append(`
+		textLineMarkerDescEl.append(
+			`
 			Force detection of a line as a text line when the plugin has mistakenly detected it as a chord line.`,
 			createEl("br"),
-			`For example, using `, createEl("code", { text: "%t" }),`means a line such as `, createEl("br"),
-			createEl("code", { text: "A Ana e a Ema estão a comer e a beber em casa.  %t" }), createEl("br"),
+			`For example, using `,
+			createEl("code", { text: "%t" }),
+			`means a line such as `,
+			createEl("br"),
+			createEl("code", {
+				text: "A Ana e a Ema estão a comer e a beber em casa.  %t",
+			}),
+			createEl("br"),
 			`will disable chord detection and highlighting for this line.`,
 			createEl("br"),
 			createEl("br"),
 			`The marker must appear on the end of a line and seperated by one or more spaces from preceding line content. 
-			It cannot contain spaces.`
+			It cannot contain spaces.`,
 		);
 		textLineMarkerDescFrag.appendChild(textLineMarkerDescEl);
 		new Setting(containerEl)
-			.setName('Text line marker')
+			.setName("Text line marker")
 			.setDesc(textLineMarkerDescFrag)
-			.addText(text => text
-				.setValue(this.plugin.settings.textLineMarker === DEFAULT_TEXT_LINE_MARKER ? "" : this.plugin.settings.textLineMarker)
-				.setPlaceholder(DEFAULT_TEXT_LINE_MARKER)
-				.onChange(async value => await this.handleSyntaxSettingChange(
-					"textLineMarker", value, text,DEFAULT_TEXT_LINE_MARKER, /^\S+$/
-				))
-
+			.addText((text) =>
+				text
+					.setValue(
+						this.plugin.settings.textLineMarker ===
+							DEFAULT_TEXT_LINE_MARKER
+							? ""
+							: this.plugin.settings.textLineMarker,
+					)
+					.setPlaceholder(DEFAULT_TEXT_LINE_MARKER)
+					.onChange(
+						async (value) =>
+							await this.handleSyntaxSettingChange(
+								"textLineMarker",
+								value,
+								text,
+								DEFAULT_TEXT_LINE_MARKER,
+								/^\S+$/,
+							),
+					),
 			);
 
-		new Setting(containerEl).setName('Advanced').setHeading();
+		new Setting(containerEl).setName("Advanced").setHeading();
 
 		new Setting(containerEl)
-			.setName('Debug mode')
-			.setDesc('Enables verbose logging and a debug gutter in the editor.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.debug)
-				.onChange(async (value) => {
-					this.plugin.settings.debug = value;
-					await this.plugin.saveSettings();
-					this.plugin.applyNewSettingsToEditors();
-				}));
-
+			.setName("Debug mode")
+			.setDesc(
+				"Enables verbose logging and a debug gutter in the editor.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.debug)
+					.onChange(async (value) => {
+						this.plugin.settings.debug = value;
+						await this.plugin.saveSettings();
+						this.plugin.applyNewSettingsToEditors();
+					}),
+			);
 	}
 
 	private async handleSyntaxSettingChange(
-		key: keyof Pick<ChordSheetsSettings, 'blockLanguageSpecifier' | 'chordLineMarker' | 'textLineMarker'>,
+		key: keyof Pick<
+			ChordSheetsSettings,
+			"blockLanguageSpecifier" | "chordLineMarker" | "textLineMarker"
+		>,
 		value: string,
 		text: TextComponent,
 		defaultValue: string,
-		validator: RegExp
+		validator: RegExp,
 	) {
 		const trimmedValue = value.trim();
 		text.setValue(trimmedValue);

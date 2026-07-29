@@ -1,20 +1,28 @@
-import {dbChordToVexChord, userDefinedToVexChord} from "../src/chordDiagrams";
-import {generateChord, clearChordCache} from "../src/chordGenerator";
-import {ChordToken} from "../src/sheet-parsing/tokens";
+import { dbChordToVexChord, userDefinedToVexChord } from "../src/chordDiagrams";
+import {
+	generateChord,
+	clearChordCache,
+	MAX_POSITIONS,
+} from "../src/chordGenerator";
+import { chromaticNoteColor } from "../src/chordsUtils";
+import { INSTRUMENTS, Instrument } from "../src/instruments";
+import { tokenizeLine } from "../src/sheet-parsing/tokenizeLine";
+import { ChordToken, isChordToken } from "../src/sheet-parsing/tokens";
 
 function tokenFor(symbol: string): ChordToken {
 	const slash = symbol.indexOf("/");
 	const tonicMatch = symbol.match(/^([A-G][#b]?)/);
 	const tonic = tonicMatch?.[1] ?? "";
 	const bass = slash >= 0 ? symbol.slice(slash + 1) : null;
-	const type = slash >= 0
-		? symbol.slice(tonic.length, slash)
-		: symbol.slice(tonic.length);
+	const type =
+		slash >= 0
+			? symbol.slice(tonic.length, slash)
+			: symbol.slice(tonic.length);
 	return {
 		value: symbol,
 		range: [0, symbol.length],
 		type: "chord",
-		chordSymbol: {value: symbol, range: [0, symbol.length]},
+		chordSymbol: { value: symbol, range: [0, symbol.length] },
 		chord: {
 			tonic,
 			type: type || "major",
@@ -24,7 +32,54 @@ function tokenFor(symbol: string): ChordToken {
 	} as ChordToken;
 }
 
-function testGeneratedChord(symbol: string, positionIndex: number, expectedPartial: Partial<ReturnType<typeof dbChordToVexChord>>) {
+function chordTokensFromSheet(source: string): ChordToken[] {
+	let offset = 0;
+
+	return source.split("\n").flatMap((line) => {
+		const tokenized = tokenizeLine(line, offset, "%c", "%t");
+		offset += line.length + 1;
+		return tokenized.tokens.filter(isChordToken);
+	});
+}
+
+function expectValidGeneratedChord(
+	chordToken: ChordToken,
+	instrument: Instrument,
+) {
+	const chord = generateChord(chordToken, instrument);
+	if (!chord) {
+		return;
+	}
+
+	const stringCount = INSTRUMENTS[instrument].strings;
+	expect(chord.positions).not.toHaveLength(0);
+	expect(chord.positions.length).toBeLessThanOrEqual(MAX_POSITIONS);
+
+	for (const position of chord.positions) {
+		expect(position.frets).toHaveLength(stringCount);
+		expect(position.fingers).toHaveLength(stringCount);
+		expect(position.baseFret).toBeGreaterThanOrEqual(1);
+		for (const fret of position.frets) {
+			expect(fret === -1 || (Number.isInteger(fret) && fret >= 0)).toBe(
+				true,
+			);
+		}
+		for (const finger of position.fingers) {
+			expect(Number.isInteger(finger) && finger >= 0 && finger <= 4).toBe(
+				true,
+			);
+		}
+		expect(() =>
+			dbChordToVexChord({ ...chord, positions: [position] }),
+		).not.toThrow();
+	}
+}
+
+function testGeneratedChord(
+	symbol: string,
+	positionIndex: number,
+	expectedPartial: Partial<ReturnType<typeof dbChordToVexChord>>,
+) {
 	clearChordCache();
 	const chord = generateChord(tokenFor(symbol), "guitar");
 	expect(chord).not.toBeNull();
@@ -34,16 +89,30 @@ function testGeneratedChord(symbol: string, positionIndex: number, expectedParti
 	expect(result).toMatchObject(expectedPartial);
 }
 
-function testUserChord(frets: string, position: number, numStrings: number, expectedResult: Omit<ReturnType<typeof userDefinedToVexChord>, 'tuning'>) {
-	const result = userDefinedToVexChord({frets, position}, numStrings);
-	
-	expect(result.tuning).toEqual(new Array(numStrings).fill(''));
-	
+function testUserChord(
+	frets: string,
+	position: number,
+	numStrings: number,
+	expectedResult: Omit<ReturnType<typeof userDefinedToVexChord>, "tuning">,
+) {
+	const result = userDefinedToVexChord({ frets, position }, numStrings);
+
+	expect(result.tuning).toEqual(new Array(numStrings).fill(""));
+
 	expect(result).toMatchObject({
 		...expectedResult,
-		tuning: new Array(numStrings).fill('')
+		tuning: new Array(numStrings).fill(""),
 	});
 }
+
+describe("Chromatic chord colors", () => {
+	test("assigns enharmonic tonics the same hue", () => {
+		expect(chromaticNoteColor("C")).toBe("oklch(72% 0.14 0)");
+		expect(chromaticNoteColor("C#")).toBe("oklch(72% 0.14 30)");
+		expect(chromaticNoteColor("Db")).toBe("oklch(72% 0.14 30)");
+		expect(chromaticNoteColor("B")).toBe("oklch(72% 0.14 330)");
+	});
+});
 
 describe("Generated chord diagrams", () => {
 	beforeEach(() => clearChordCache());
@@ -81,7 +150,7 @@ describe("Generated chord diagrams", () => {
 				[3, 0],
 				[4, 2],
 				[5, 3],
-				[6, "x"]
+				[6, "x"],
 			],
 			position: 1,
 		});
@@ -100,6 +169,66 @@ describe("Generated chord diagrams", () => {
 	});
 });
 
+describe("Generated diagrams from chord sheets", () => {
+	const pseudoSheet = `[Verse]
+C Am F G %c
+[E7/G#]This [E7/Ab]love is [Cmaj7]taking me home
+Dm7 G7 C6 Cadd9 C7#9 C7alt %c
+C/G C/G# Dm7/C %c
+H C//G N.C. %c`;
+
+	test("recognizes chords in chord lines and inline lyrics", () => {
+		expect(
+			chordTokensFromSheet(pseudoSheet).map(
+				(token) => token.chordSymbol.value,
+			),
+		).toEqual([
+			"C",
+			"Am",
+			"F",
+			"G",
+			"E7/G#",
+			"E7/Ab",
+			"Cmaj7",
+			"Dm7",
+			"G7",
+			"C6",
+			"Cadd9",
+			"C7#9",
+			"C7alt",
+			"C/G",
+			"C/G#",
+			"Dm7/C",
+		]);
+	});
+
+	test.each(Object.keys(INSTRUMENTS) as Instrument[])(
+		"returns only renderer-safe positions for %s",
+		(instrument) => {
+			for (const chordToken of chordTokensFromSheet(pseudoSheet)) {
+				expect(() =>
+					expectValidGeneratedChord(chordToken, instrument),
+				).not.toThrow();
+			}
+		},
+	);
+
+	test("does not throw for an unrecognized generated symbol", () => {
+		expect(() =>
+			generateChord(tokenFor("Cnotachord"), "guitar"),
+		).not.toThrow();
+		expect(generateChord(tokenFor("Cnotachord"), "guitar")).toBeNull();
+	});
+
+	test("rejects a generated position outside the available range", () => {
+		const chord = generateChord(tokenFor("C"), "guitar");
+		expect(chord).not.toBeNull();
+		expect(() =>
+			dbChordToVexChord(chord!, chord!.positions.length),
+		).toThrow(RangeError);
+	});
+});
+
 describe("Conversion of user-defined chords to vexchord format", () => {
 	describe("userDefinedToVexChord", () => {
 		test("basic fret pattern", () => {
@@ -110,11 +239,11 @@ describe("Conversion of user-defined chords to vexchord format", () => {
 					[4, 0],
 					[3, 0],
 					[2, 1],
-					[1, 3]
+					[1, 3],
 				],
 				position: 1,
 				barres: [],
-				numFrets: 4
+				numFrets: 4,
 			});
 		});
 
@@ -126,17 +255,17 @@ describe("Conversion of user-defined chords to vexchord format", () => {
 					[4, 5],
 					[3, 5],
 					[2, 3],
-					[1, 3]
+					[1, 3],
 				],
 				position: 1,
 				barres: [
 					{
 						fromString: 6,
 						toString: 1,
-						fret: 3
-					}
+						fret: 3,
+					},
 				],
-				numFrets: 5
+				numFrets: 5,
 			});
 		});
 
@@ -148,11 +277,11 @@ describe("Conversion of user-defined chords to vexchord format", () => {
 					[4, 2],
 					[3, 0],
 					[2, 1],
-					[1, 0]
+					[1, 0],
 				],
 				position: 1,
 				barres: [],
-				numFrets: 4
+				numFrets: 4,
 			});
 		});
 
@@ -164,22 +293,22 @@ describe("Conversion of user-defined chords to vexchord format", () => {
 					[4, 3],
 					[3, 3],
 					[2, 5],
-					[1, 5]
+					[1, 5],
 				],
 				position: 1,
 				barres: [
 					{
 						fromString: 6,
 						toString: 3,
-						fret: 3
+						fret: 3,
 					},
 					{
 						fromString: 2,
 						toString: 1,
-						fret: 5
-					}
+						fret: 5,
+					},
 				],
-				numFrets: 5
+				numFrets: 5,
 			});
 		});
 
@@ -191,11 +320,11 @@ describe("Conversion of user-defined chords to vexchord format", () => {
 					[4, 3],
 					[3, 2],
 					[2, 1],
-					[1, 1]
+					[1, 1],
 				],
 				position: 12,
 				barres: [],
-				numFrets: 4
+				numFrets: 4,
 			});
 		});
 
@@ -207,11 +336,11 @@ describe("Conversion of user-defined chords to vexchord format", () => {
 					[4, 3],
 					[3, 3],
 					[2, 2],
-					[1, "x"]
+					[1, "x"],
 				],
 				position: 10,
 				barres: [],
-				numFrets: 4
+				numFrets: 4,
 			});
 		});
 
@@ -223,12 +352,46 @@ describe("Conversion of user-defined chords to vexchord format", () => {
 					[4, 2],
 					[3, 1],
 					[2, 0],
-					[1, 0]
+					[1, 0],
 				],
 				position: 12,
 				barres: [],
-				numFrets: 4
+				numFrets: 4,
 			});
+		});
+
+		test("multi-digit barre notation", () => {
+			testUserChord("_20 22 22 22 20 20_", 0, 6, {
+				chord: [
+					[6, 1],
+					[5, 3],
+					[4, 3],
+					[3, 3],
+					[2, 1],
+					[1, 1],
+				],
+				position: 20,
+				barres: [
+					{
+						fromString: 6,
+						toString: 1,
+						fret: 1,
+					},
+				],
+				numFrets: 4,
+			});
+		});
+
+		test("rejects a shape with the wrong number of strings", () => {
+			expect(() =>
+				userDefinedToVexChord({ frets: "x3201", position: 0 }, 6),
+			).toThrow(RangeError);
+		});
+
+		test("rejects non-fret characters", () => {
+			expect(() =>
+				userDefinedToVexChord({ frets: "x3a010", position: 0 }, 6),
+			).toThrow("Fret strings may only contain");
 		});
 
 		test("explicit position with relative frets", () => {
@@ -239,11 +402,11 @@ describe("Conversion of user-defined chords to vexchord format", () => {
 					[4, "x"],
 					[3, 1],
 					[2, 3],
-					[1, 2]
+					[1, 2],
 				],
 				position: 4,
 				barres: [],
-				numFrets: 4
+				numFrets: 4,
 			});
 		});
 	});

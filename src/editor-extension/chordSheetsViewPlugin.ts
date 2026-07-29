@@ -83,7 +83,7 @@ export const chordSheetEditorPlugin = () => ViewPlugin.fromClass(ChordSheetsView
 		},
         
 		mousemove: function (event: MouseEvent, view: EditorView) {
-			const {showChordDiagramsOnHover} = view.state.facet(chordSheetsConfigFacet);
+			const {showChordDiagramsOnHover, useChromaticChordColors} = view.state.facet(chordSheetsConfigFacet);
 			if (
 				view.state.field(chordBlocksStateField).ranges.size === 0
 				|| !(showChordDiagramsOnHover === "always" || showChordDiagramsOnHover === "edit")
@@ -120,7 +120,14 @@ export const chordSheetEditorPlugin = () => ViewPlugin.fromClass(ChordSheetsView
 									if (currentBlock.value) {
 										this.currentDeco = deco;
 										this.currentEl = el;
-										this.tooltip.show(el, currentBlock.value.instrument, chordToken, diagramWidth);
+										this.tooltip.show(
+											el,
+											currentBlock.value.instrument,
+											chordToken,
+											diagramWidth,
+											useChromaticChordColors,
+											currentBlock.value.positionSelections,
+										);
 									}
 								}
 							}
@@ -182,7 +189,11 @@ export class ChordSheetsViewPlugin implements PluginValue {
 		this.view.state.field(chordBlocksStateField).ranges.between(cursorPos, cursorPos, (blockFrom, blockTo, value) => {
 			from = blockFrom;
 			to = blockTo;
-			blockValue = {partiallyParsed: value.partiallyParsed, instrument: value.instrument};
+			blockValue = {
+				partiallyParsed: value.partiallyParsed,
+				instrument: value.instrument,
+				positionSelections: value.positionSelections,
+			};
 			return false;
 		});
 

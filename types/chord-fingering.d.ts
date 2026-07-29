@@ -31,13 +31,13 @@ declare module "chord-fingering" {
 	export function findGuitarChord(
 		symbol: string,
 		tuning?: string | string[],
-		caseSensitive?: boolean
+		caseSensitive?: boolean,
 	): GuitarChord | null;
 
 	export function findFingerings(
 		notes: string[],
 		optionalNotes?: string[],
 		bass?: string | null,
-		tuning?: string | string[]
+		tuning?: string | string[],
 	): Fingering[];
 }
