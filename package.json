@@ -1,7 +1,7 @@
 {
 	"name": "obsidian-chord-sheets",
-	"version": "1.8.0",
-	"description": "Chord Sheets plugin for Obsidian",
+	"version": "1.9.0",
+	"description": "Chord Sheets plugin for Obsidian — always generates fretboard diagrams (no static chord DB)",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
@@ -11,7 +11,7 @@
 	},
 	"keywords": [],
 	"author": "",
-	"license": "MIT",
+	"license": "GPL-3.0-only",
 	"devDependencies": {
 		"@types/jest": "^29.5.14",
 		"@types/node": "^16.11.6",
@@ -29,7 +29,7 @@
 	"dependencies": {
 		"@chordbook/charts": "^0.0.2",
 		"@codemirror/language": "^6.8.0",
-		"@tombatossals/chords-db": "https://github.com/olvidalo/chords-db#66aa25b5b841c3c30b4cd1c65caa94efb08ea963",
+		"chord-fingering": "^1.0.2",
 		"escape-string-regexp": "^5.0.0",
 		"tippy.js": "^6.3.7",
 		"tonal": "^6.2.0"

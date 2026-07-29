@@ -1,15 +1,10 @@
 {
-	"id": "chord-sheets",
-	"name": "Chord Sheets",
+	"id": "chord-sheets-generate",
+	"name": "Chord Sheets (Generate)",
 	"minAppVersion": "0.15.0",
-	"description": "Work with chord sheets (chords over lyrics) in your Vault: Chord diagrams, transpose, autoscroll and more. Works in live preview and reading mode.",
-	"author": "Marcel Schaeben",
-	"authorUrl": "https://github.com/olvidalo",
-	"fundingUrl": {
-		"GitHub Sponsors": "https://github.com/sponsors/olvidalo",
-		"PayPal": "https://paypal.me/MSchaeben",
-		"Ko-fi": "https://ko-fi.com/olvidalo"
-	},
+	"description": "Fork of Chord Sheets that always generates fretboard diagrams (no static chord DB). Chord diagrams, transpose, autoscroll. Works in live preview and reading mode.",
+	"author": "brookjordan (fork of Marcel Schaeben / olvidalo)",
+	"authorUrl": "https://github.com/brookjordan/obsidian-chord-sheets",
 	"isDesktopOnly": false,
-	"version": "1.8.0"
+	"version": "1.9.0"
 }

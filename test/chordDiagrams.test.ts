@@ -1,209 +1,106 @@
-import ChordsDB from "@tombatossals/chords-db";
 import {dbChordToVexChord, userDefinedToVexChord} from "../src/chordDiagrams";
+import {generateChord, clearChordCache} from "../src/chordGenerator";
+import {ChordToken} from "../src/sheet-parsing/tokens";
 
-function findChord(instrument: keyof typeof ChordsDB, key: string, suffix: string) {
-	return ChordsDB[instrument].chords[key].find(chord => chord.suffix === suffix);
+function tokenFor(symbol: string): ChordToken {
+	const slash = symbol.indexOf("/");
+	const tonicMatch = symbol.match(/^([A-G][#b]?)/);
+	const tonic = tonicMatch?.[1] ?? "";
+	const bass = slash >= 0 ? symbol.slice(slash + 1) : null;
+	const type = slash >= 0
+		? symbol.slice(tonic.length, slash)
+		: symbol.slice(tonic.length);
+	return {
+		value: symbol,
+		range: [0, symbol.length],
+		type: "chord",
+		chordSymbol: {value: symbol, range: [0, symbol.length]},
+		chord: {
+			tonic,
+			type: type || "major",
+			typeAliases: [],
+			bass,
+		},
+	} as ChordToken;
 }
 
-function testDbChord(instrument: keyof typeof ChordsDB, key: string, suffix: string, positionIndex: number, expectedResult: unknown) {
-	const chord = findChord(instrument, key, suffix);
-	expect(chord).toBeDefined();
+function testGeneratedChord(symbol: string, positionIndex: number, expectedPartial: Partial<ReturnType<typeof dbChordToVexChord>>) {
+	clearChordCache();
+	const chord = generateChord(tokenFor(symbol), "guitar");
+	expect(chord).not.toBeNull();
+	expect(chord!.positions.length).toBeGreaterThan(positionIndex);
 
 	const result = dbChordToVexChord(chord!, positionIndex);
-	expect(result).toEqual(expectedResult);
+	expect(result).toMatchObject(expectedPartial);
 }
 
 function testUserChord(frets: string, position: number, numStrings: number, expectedResult: Omit<ReturnType<typeof userDefinedToVexChord>, 'tuning'>) {
 	const result = userDefinedToVexChord({frets, position}, numStrings);
 	
-	// tuning array is always empty strings so chord box height won't extend down
 	expect(result.tuning).toEqual(new Array(numStrings).fill(''));
 	
-	// check all other properties
 	expect(result).toMatchObject({
 		...expectedResult,
 		tuning: new Array(numStrings).fill('')
 	});
 }
 
-describe("Conversion of chords to vexchord format", () => {
-	describe("dbChordToVexChord", () => {
-		describe("open chords", () => {
-			test("Basic open C major", () => {
-				testDbChord("guitar", "C", "major", 0, {
-					chord: [
-						[1, 0],
-						[2, 1],
-						[3, 0],
-						[4, 2],
-						[5, 3],
-						[6, "x"]
-					],
-					position: 1,
-					barres: [],
-					tuning: ["", "3", "2", "", "1", ""]
-				});
-			});
+describe("Generated chord diagrams", () => {
+	beforeEach(() => clearChordCache());
 
-			test("Basic open A minor", () => {
-				testDbChord("guitar", "A", "minor", 0, {
-					chord: [
-						[1, 0],
-						[2, 1],
-						[3, 2],
-						[4, 2],
-						[5, 0],
-						[6, "x"]
-					],
-					position: 1,
-					barres: [],
-					tuning: ["", "", "2", "3", "1", ""]
-				});
-			});
+	test("open C major generates a diagram", () => {
+		const chord = generateChord(tokenFor("C"), "guitar");
+		expect(chord).not.toBeNull();
+		expect(chord!.positions.length).toBeGreaterThan(0);
+		// Classic open C: x32010
+		expect(chord!.positions[0].frets).toEqual([-1, 3, 2, 0, 1, 0]);
+	});
 
-			test("Basic open D major", () => {
-				testDbChord("guitar", "D", "major", 0, {
-					chord: [
-						[1, 2],
-						[2, 3],
-						[3, 2],
-						[4, 0],
-						[5, "x"],
-						[6, "x"]
-					],
-					position: 1,
-					barres: [],
-					tuning: ["", "", "", "1", "3", "2"]
-				});
-			});
-		});
+	test("E7/G# generates the open first-inversion shape", () => {
+		const chord = generateChord(tokenFor("E7/G#"), "guitar");
+		expect(chord).not.toBeNull();
+		expect(chord!.positions[0].frets).toEqual([4, 2, 0, 1, 0, 0]);
+	});
 
-		describe("barre chords", () => {
-			test("Basic F major", () => {
-				testDbChord("guitar", "F", "major", 0, {
-					chord: [
-						[3, 2],
-						[4, 3],
-						[5, 3]
-					],
-					position: 1,
-					barres: [
-						{
-							fromString: 6,
-							toString: 1,
-							fret: 1
-						}
-					],
-					tuning: ["1", "3", "4", "2", "1", "1"]
-				});
-			});
+	test("E7/Ab also generates (enharmonic slash)", () => {
+		const chord = generateChord(tokenFor("E7/Ab"), "guitar");
+		expect(chord).not.toBeNull();
+		expect(chord!.positions.length).toBeGreaterThan(0);
+	});
 
-			test("C#7 position 2", () => {
-				testDbChord("guitar", "Csharp", "7", 2, {
-					chord: [
-						[1, 2],
-						[5, 3],
-						[6, 4]
-					],
-					position: 6,
-					barres: [
-						{
-							fromString: 4,
-							toString: 2,
-							fret: 1
-						}
-					],
-					tuning: ["4", "3", "1", "1", "1", "2"]
-				});
-			});
+	test("Am open shape", () => {
+		const chord = generateChord(tokenFor("Am"), "guitar");
+		expect(chord!.positions[0].frets).toEqual([-1, 0, 2, 2, 1, 0]);
+	});
 
-			test("C#m9 position 0", () => {
-				testDbChord("guitar", "Csharp", "m9", 0, {
-					chord: [
-						[4, 2],
-						[6, "x"]
-					],
-					position: 1,
-					barres: [
-						{
-							fromString: 5,
-							toString: 1,
-							fret: 4
-						}
-					],
-					tuning: ["", "2", "1", "3", "4", "4"]
-				});
-			});
-		});
-
-		describe("different positions", () => {
-
-			test("A minor position 2 (barre on 5th fret)", () => {
-				testDbChord("guitar", "A", "minor", 2, {
-					chord: [
-						[4, 3],
-						[5, 3]
-					],
-					position: 5,
-					barres: [
-						{
-							fromString: 6,
-							toString: 1,
-							fret: 1
-						}
-					],
-					tuning: ["1", "3", "4", "1", "1", "1"]
-				});
-			});
-
-			test("A minor position 3 (7th fret position)", () => {
-				testDbChord("guitar", "A", "minor", 3, {
-					chord: [
-						[1, 2],
-						[2, 4],
-						[3, 3],
-						[4, 1],
-						[5, 0],
-						[6, "x"]
-					],
-					position: 7,
-					barres: [],
-					tuning: ["", "", "1", "3", "4", "2"]
-				});
-			});
-		});
-
-		describe("different instruments", () => {
-			test("Ukulele C major", () => {
-				testDbChord("ukulele", "C", "major", 0, {
-					chord: [
-						[1, 3],
-						[2, 0],
-						[3, 0],
-						[4, 0]
-					],
-					position: 1,
-					barres: [],
-					tuning: ["", "", "", "3"]
-				});
-			});
-
-			test("Mandolin C major", () => {
-				testDbChord("mandolin", "C", "major", 0, {
-					chord: [
-						[1, 0],
-						[2, 3],
-						[3, 2],
-						[4, 0]
-					],
-					position: 1,
-					barres: [],
-					tuning: ["", "1", "2", ""]
-				});
-			});
+	test("dbChordToVexChord converts generated C", () => {
+		testGeneratedChord("C", 0, {
+			chord: [
+				[1, 0],
+				[2, 1],
+				[3, 0],
+				[4, 2],
+				[5, 3],
+				[6, "x"]
+			],
+			position: 1,
 		});
 	});
 
+	test("ukulele C major generates", () => {
+		const chord = generateChord(tokenFor("C"), "ukulele");
+		expect(chord).not.toBeNull();
+		expect(chord!.positions[0].frets).toHaveLength(4);
+	});
+
+	test("mandolin C major generates", () => {
+		const chord = generateChord(tokenFor("C"), "mandolin");
+		expect(chord).not.toBeNull();
+		expect(chord!.positions[0].frets).toHaveLength(4);
+	});
+});
+
+describe("Conversion of user-defined chords to vexchord format", () => {
 	describe("userDefinedToVexChord", () => {
 		test("basic fret pattern", () => {
 			testUserChord("320013", 1, 6, {

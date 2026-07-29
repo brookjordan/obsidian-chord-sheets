@@ -18,7 +18,7 @@ import {AutoscrollControl, SPEED_CHANGED_EVENT} from "./autoscrollControl";
 import {ChordSheetsSettingTab} from "./chordSheetsSettingTab";
 import {IChordSheetsPlugin} from "./chordSheetsPluginInterface";
 import {chordSheetsEditorExtension} from "./editor-extension/chordSheetsEditorExtension";
-import ChordsDB from "@tombatossals/chords-db";
+import {INSTRUMENT_NAMES} from "./instruments";
 import {addCustomChordTypes} from "./customChordTypes";
 import {enharmonicToggle, transpose} from "./chordProcessing";
 
@@ -144,7 +144,7 @@ export default class ChordSheetsPlugin extends Plugin implements IChordSheetsPlu
 			}
 		});
 
-		for (const instrument of Object.keys(ChordsDB) as Instrument[]) {
+		for (const instrument of INSTRUMENT_NAMES) {
 			this.addCommand({
 				id: `block-instrument-change-${instrument}`,
 				name: `Change instrument for the current chord block to ${instrument}`,

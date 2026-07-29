@@ -1,6 +1,7 @@
-import {chordSequenceString, findDbChord, Instrument, UserDefinedChord} from "./chordsUtils";
+import {chordSequenceString, Instrument, UserDefinedChord} from "./chordsUtils";
+import {INSTRUMENTS} from "./instruments";
 import {ChordBox} from "@chordbook/charts";
-import ChordsDB, {ChordDef} from "@tombatossals/chords-db";
+import {ChordDef, generateChord} from "./chordGenerator";
 import {ChordToken} from "./sheet-parsing/tokens";
 
 type ChordBoxParams = Parameters<ChordBox["draw"]>[0];
@@ -11,7 +12,7 @@ export function dbChordToVexChord(input: ChordDef, positionIndex = 0): ChordBoxP
 	const frets = [...position.frets].reverse();
 
 	const barres: ChordBoxParams["barres"] = [];
-	position.barres.forEach((barreFret) => {
+	(position.barres ?? []).forEach((barreFret) => {
 		const toString = frets.indexOf(barreFret) + 1;
 		const fromString = frets.lastIndexOf(barreFret) + 1;
 
@@ -215,9 +216,9 @@ export function makeChordDiagram(instrument: Instrument, chordToken: ChordToken,
 	chordBox.addClass("chord-sheet-chord-box");
 	containerEl.appendChild(chordBox);
 
-	const instrumentChordDb = ChordsDB[instrument];
-	const numStrings = instrumentChordDb.main.strings;
-	const numFrets = instrumentChordDb.main.fretsOnChord;
+	const instrumentConfig = INSTRUMENTS[instrument];
+	const numStrings = instrumentConfig.strings;
+	const numFrets = instrumentConfig.fretsOnChord;
 
 	if (chordToken.chord.userDefinedChord !== undefined) {
 
@@ -236,14 +237,14 @@ export function makeChordDiagram(instrument: Instrument, chordToken: ChordToken,
 		});
 	}
 	else {
-		const dbChord = findDbChord(chordToken, instrumentChordDb);
-		if (!dbChord) {
+		const generatedChord = generateChord(chordToken, instrument);
+		if (!generatedChord) {
 			renderMissingDiagramNotice(chordBox, chordToken.chordSymbol.value, numStrings, numFrets, width);
 			return containerEl;
 		}
 
 		let currentPosition = position;
-		const numPositions = dbChord.positions.length;
+		const numPositions = generatedChord.positions.length;
 		if (numPositions > 0) {
 			const positionChooser = Object.assign(document.createElement('div'), {
 				className: "chord-sheet-position-chooser"
@@ -284,7 +285,7 @@ export function makeChordDiagram(instrument: Instrument, chordToken: ChordToken,
 					renderChordDiagram({
 						containerEl: containerEl,
 						userDefinedChord: undefined,
-						chordDef: dbChord,
+						chordDef: generatedChord,
 						numPositions: numPositions,
 						position: ++currentPosition,
 						numStrings: numStrings,
@@ -299,7 +300,7 @@ export function makeChordDiagram(instrument: Instrument, chordToken: ChordToken,
 					renderChordDiagram({
 						containerEl: containerEl,
 						userDefinedChord: undefined,
-						chordDef: dbChord,
+						chordDef: generatedChord,
 						numPositions: numPositions,
 						position: --currentPosition,
 						numStrings: numStrings,
@@ -314,7 +315,7 @@ export function makeChordDiagram(instrument: Instrument, chordToken: ChordToken,
 		renderChordDiagram({
 			containerEl: containerEl,
 			userDefinedChord: undefined,
-			chordDef: dbChord,
+			chordDef: generatedChord,
 			numPositions: numPositions,
 			position: position,
 			numStrings: numStrings,

@@ -1,4 +1,6 @@
-# Obsidian Chord Sheets
+# Obsidian Chord Sheets (always-generate fork)
+
+> Fork of [olvidalo/obsidian-chord-sheets](https://github.com/olvidalo/obsidian-chord-sheets) that **always generates** fretboard fingerings with [chord-fingering](https://github.com/hyvyys/chord-fingering) instead of looking them up in a static chords database. Any chord tonal can parse (including slash chords like `E7/G#`) gets diagrams.
 
 Render and work with chord sheets (**chords over lyrics** or **inline chords** in brackets) in your vault. This plugin brings
 UltimateGuitar-like functionality into Obsidian, featuring **chord diagrams**,
@@ -122,9 +124,9 @@ Chrome remote debugging on port 9222.
 
 This plugin uses:
 
-- [Vexchords](https://github.com/0xfe/vexchords) for rendering chord diagrams.
+- [Vexchords](https://github.com/0xfe/vexchords) / [@chordbook/charts](https://www.npmjs.com/package/@chordbook/charts) for rendering chord diagrams.
 - [tonal](https://github.com/tonaljs/tonal) for parsing chord symbols, chord normalization, and transposition.
-- [chords-db](https://github.com/tombatossals/chords-db) for ukulele and guitar fingerings.
+- [chord-fingering](https://github.com/hyvyys/chord-fingering) for generating fretboard fingerings on the fly (GPL-3.0).
 
 ## Inspiration / Alternatives
 
