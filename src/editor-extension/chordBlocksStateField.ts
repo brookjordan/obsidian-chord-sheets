@@ -32,12 +32,13 @@ import {
 	Token,
 } from "../sheet-parsing/tokens";
 import { tokenizeLine } from "../sheet-parsing/tokenizeLine";
+import { parseBeatLabels, parseStandaloneBpm } from "../strummingPatterns";
 import {
-	parseStandaloneBpm,
-	parseStrummingPattern,
-	STRUMMING_BPM,
-	withBpm,
-} from "../strummingPatterns";
+	parseStrummingBlock,
+	ParsedStrummingBlockLine,
+} from "../strummingBlock";
+import { CapoSelection, makeCapoSelection } from "../capoControls";
+import { parseCapo } from "../capo";
 
 class ParsedUntilRangeValue extends RangeValue {
 	endSide = -1;
@@ -48,6 +49,7 @@ export interface IChordBlockRangeValue {
 	instrument: Instrument;
 	partiallyParsed: boolean;
 	positionSelections: ChordPositionSelections;
+	capoSelection: CapoSelection;
 }
 
 class ChordBlockRangeValue extends RangeValue implements IChordBlockRangeValue {
@@ -57,6 +59,7 @@ class ChordBlockRangeValue extends RangeValue implements IChordBlockRangeValue {
 		readonly instrument: Instrument,
 		readonly partiallyParsed = false,
 		readonly positionSelections: ChordPositionSelections = new Map(),
+		readonly capoSelection: CapoSelection = makeCapoSelection(null),
 	) {
 		super();
 		this.endSide = partiallyParsed ? 0 : -1;
@@ -363,6 +366,22 @@ function linesBetween(state: EditorState, from: number, to: number): Line[] {
 	return lines;
 }
 
+function sourceCapoBetween(
+	state: EditorState,
+	from: number,
+	to: number,
+): number | null {
+	const firstLine = state.doc.lineAt(from).number;
+	const lastLine = state.doc.lineAt(Math.min(to, state.doc.length)).number;
+	for (let lineNumber = firstLine + 1; lineNumber <= lastLine; lineNumber++) {
+		const fret = parseCapo(state.doc.line(lineNumber).text);
+		if (fret !== null) {
+			return fret;
+		}
+	}
+	return null;
+}
+
 function updateChordBlocks(
 	{
 		changes,
@@ -417,10 +436,15 @@ function updateChordBlocks(
 	// https://discuss.codemirror.net/t/iterators-can-be-hard-to-work-with-for-beginners/3533/10
 	changes.iterChangedRanges((fromA, toA, fromB, toB) => {
 		const reparseStart = state.doc.lineAt(fromB).from;
-		const bpmDirectiveChanged = [
+		const strummingContextChanged = [
 			...linesBetween(startState, fromA, toA),
 			...linesBetween(state, fromB, toB),
-		].some((line) => parseStandaloneBpm(line.text) !== null);
+		].some(
+			(line) =>
+				parseStandaloneBpm(line.text) !== null ||
+				parseBeatLabels(line.text) !== null ||
+				parseCapo(line.text) !== null,
+		);
 
 		// the reparse range ends at the last block that is touched by the change range
 		// from there the next block end or document end
@@ -465,7 +489,7 @@ function updateChordBlocks(
 				touchedBlock.from,
 			).number;
 			const blockEndLineNum = state.doc.lineAt(touchedBlock.to).number;
-			if (bpmDirectiveChanged) {
+			if (strummingContextChanged) {
 				for (
 					let lineIndex = blockStartLineNum + 1;
 					lineIndex < blockEndLineNum;
@@ -640,6 +664,7 @@ function getChordBlockDecos(
 							config.diagramWidth,
 							config.useChromaticChordColors,
 							chordBlockIter.value.positionSelections,
+							chordBlockIter.value.capoSelection,
 							chordTokens,
 						),
 						side: -1,
@@ -662,7 +687,8 @@ function getChordBlockDecos(
 			if (
 				config.showTransposeControl ||
 				config.showInstrumentControl ||
-				config.showEnharmonicToggleControl
+				config.showEnharmonicToggleControl ||
+				chordBlockIter.value.capoSelection.sourceFret !== null
 			) {
 				builder.add(
 					chordBlockIter.from,
@@ -674,6 +700,7 @@ function getChordBlockDecos(
 							config.showInstrumentControl,
 							config.showEnharmonicToggleControl,
 							shouldShowChordOverviewInEditor(config),
+							chordBlockIter.value.capoSelection,
 						),
 						side: 0,
 						block: false,
@@ -756,6 +783,10 @@ function parseChordBlocks(
 		openBlockFrom === null
 			? settings.defaultInstrument
 			: openBlockFrom.value.instrument;
+	let positionSelections =
+		openBlockFrom?.value.positionSelections ?? new Map<string, number>();
+	let capoSelection =
+		openBlockFrom?.value.capoSelection ?? makeCapoSelection(null);
 	let currentBlockStart: number | null = openBlockFrom?.from ?? null;
 
 	const processedChordLines = new Set<number>();
@@ -804,14 +835,22 @@ function parseChordBlocks(
 					currentBlockStart !== null &&
 					node.type.name.contains("HyperMD-codeblock-end")
 				) {
+					capoSelection = makeCapoSelection(
+						sourceCapoBetween(state, currentBlockStart, node.to),
+						capoSelection,
+					);
 					chordBlockRanges.push(
-						new ChordBlockRangeValue(instrument).range(
-							currentBlockStart,
-							node.to,
-						),
+						new ChordBlockRangeValue(
+							instrument,
+							false,
+							positionSelections,
+							capoSelection,
+						).range(currentBlockStart, node.to),
 					);
 					currentBlockStart = null;
 					instrument = settings.defaultInstrument;
+					positionSelections = new Map();
+					capoSelection = makeCapoSelection(null);
 
 					if (_stopAfterFirstBlock) {
 						skip = true;
@@ -884,10 +923,16 @@ function parseChordBlocks(
 		ifDebug(state, () =>
 			console.log(`Dangling block at ${currentBlockStart}`),
 		);
-		danglingBlock = new ChordBlockRangeValue(instrument, true).range(
-			currentBlockStart,
-			currentTreeLength,
+		capoSelection = makeCapoSelection(
+			sourceCapoBetween(state, currentBlockStart, currentTreeLength),
+			capoSelection,
 		);
+		danglingBlock = new ChordBlockRangeValue(
+			instrument,
+			true,
+			positionSelections,
+			capoSelection,
+		).range(currentBlockStart, currentTreeLength);
 		chordBlockRanges.push(danglingBlock);
 	}
 
@@ -914,11 +959,11 @@ function resolveIndex(
 	return indexTuple && [position + indexTuple[0], position + indexTuple[1]];
 }
 
-function findChordBlockBpm(
+function findStrummingBlockLine(
 	state: EditorState,
 	line: Line,
 	blockLanguageSpecifier: string,
-): number {
+): ParsedStrummingBlockLine {
 	const openingFence = new RegExp(
 		`^(?:~{3,}|\`{3,})${blockLanguageSpecifier}\\b`,
 	);
@@ -932,13 +977,14 @@ function findChordBlockBpm(
 			break;
 		}
 		if (anyFence.test(text)) {
-			return STRUMMING_BPM;
+			return { type: "other" };
 		}
 	}
 
 	if (!openingLine) {
-		return STRUMMING_BPM;
+		return { type: "other" };
 	}
+	const blockLines: string[] = [];
 	for (
 		let lineNumber = openingLine + 1;
 		lineNumber <= state.doc.lines;
@@ -948,12 +994,13 @@ function findChordBlockBpm(
 		if (anyFence.test(text)) {
 			break;
 		}
-		const bpm = parseStandaloneBpm(text);
-		if (bpm !== null) {
-			return bpm;
-		}
+		blockLines.push(text);
 	}
-	return STRUMMING_BPM;
+	return (
+		parseStrummingBlock(blockLines)[line.number - openingLine - 1] ?? {
+			type: "other",
+		}
+	);
 }
 
 function chordDecosForLine(
@@ -972,13 +1019,15 @@ function chordDecosForLine(
 	state: EditorState,
 ) {
 	const chordDecos = [];
-	const parsedStrummingPattern = parseStrummingPattern(line.text);
-	const strummingPattern = parsedStrummingPattern
-		? withBpm(
-				parsedStrummingPattern,
-				findChordBlockBpm(state, line, blockLanguageSpecifier),
-			)
-		: null;
+	const parsedStrummingLine = findStrummingBlockLine(
+		state,
+		line,
+		blockLanguageSpecifier,
+	);
+	const strummingPattern =
+		parsedStrummingLine.type === "pattern"
+			? parsedStrummingLine.pattern
+			: null;
 	if (strummingPattern) {
 		chordDecos.push(
 			Decoration.line({

@@ -4,12 +4,10 @@ import {
 	Instrument,
 	uniqueChordTokens,
 } from "../chordsUtils";
-import {
-	ChordPositionSelections,
-	makeChordOverview,
-} from "../chordDiagrams";
+import { ChordPositionSelections, makeChordOverview } from "../chordDiagrams";
 
 import { ChordToken } from "../sheet-parsing/tokens";
+import { CapoSelection } from "../capoControls";
 
 export class ChordOverviewWidget extends WidgetType {
 	private readonly chordSequenceString: string;
@@ -20,6 +18,7 @@ export class ChordOverviewWidget extends WidgetType {
 		private diagramWidth: number,
 		private useChromaticChordColors: boolean,
 		private positionSelections: ChordPositionSelections,
+		private capoSelection: CapoSelection,
 		chordTokens: ChordToken[],
 	) {
 		super();
@@ -40,6 +39,7 @@ export class ChordOverviewWidget extends WidgetType {
 			this.instrument === other.instrument &&
 			this.diagramWidth === other.diagramWidth &&
 			this.useChromaticChordColors === other.useChromaticChordColors &&
+			this.capoSelection.sourceFret === other.capoSelection.sourceFret &&
 			this.uniqueChordTokens.length === other.uniqueChordTokens.length &&
 			this.uniqueChordTokens.every(
 				(value, index) => value === other.uniqueChordTokens[index],
@@ -54,6 +54,7 @@ export class ChordOverviewWidget extends WidgetType {
 			instrument: previousInstrument,
 			diagramWidth: previousDiagramWidth,
 			chromaticChordColors: previousChromaticChordColors,
+			capoFret: previousCapoFret,
 		} = chordOverview.dataset;
 
 		const previousDiagramWidthInt = previousDiagramWidth
@@ -63,7 +64,9 @@ export class ChordOverviewWidget extends WidgetType {
 			this.chordSequenceString !== previousChordSequence ||
 			this.instrument !== previousInstrument ||
 			this.diagramWidth !== previousDiagramWidthInt ||
-			`${this.useChromaticChordColors}` !== previousChromaticChordColors
+			`${this.useChromaticChordColors}` !==
+				previousChromaticChordColors ||
+			`${this.capoSelection.sourceFret ?? ""}` !== previousCapoFret
 		) {
 			this.updateChordOverview(chordOverview);
 			view.requestMeasure();
@@ -98,6 +101,7 @@ export class ChordOverviewWidget extends WidgetType {
 			this.diagramWidth,
 			this.useChromaticChordColors,
 			this.positionSelections,
+			this.capoSelection,
 		);
 	}
 

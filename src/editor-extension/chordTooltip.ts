@@ -1,11 +1,9 @@
 import tippy, { Instance } from "tippy.js";
 import { Instrument } from "../chordsUtils";
-import {
-	ChordPositionSelections,
-	makeChordDiagram,
-} from "../chordDiagrams";
+import { ChordPositionSelections, makeChordDiagram } from "../chordDiagrams";
 
 import { ChordToken } from "../sheet-parsing/tokens";
+import { CapoSelection } from "../capoControls";
 
 export class ChordTooltip {
 	private readonly instance: Instance | null = null;
@@ -33,6 +31,7 @@ export class ChordTooltip {
 		diagramWidth: number,
 		useChromaticChordColors: boolean,
 		positionSelections: ChordPositionSelections,
+		capoSelection: CapoSelection,
 	): void {
 		this.popper.appendChild(
 			makeChordDiagram(
@@ -42,6 +41,7 @@ export class ChordTooltip {
 				0,
 				useChromaticChordColors,
 				positionSelections,
+				capoSelection,
 			),
 		);
 

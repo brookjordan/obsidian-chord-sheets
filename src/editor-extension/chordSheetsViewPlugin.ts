@@ -1,8 +1,14 @@
-import {Decoration, EditorView, PluginValue, ViewPlugin, ViewUpdate} from "@codemirror/view";
-import {SheetChord} from "../chordsUtils";
-import {ChordTooltip} from "./chordTooltip";
-import {ChordSheetsSettings} from "../chordSheetsSettings";
-import {ChangeSet, ChangeSpec} from "@codemirror/state";
+import {
+	Decoration,
+	EditorView,
+	PluginValue,
+	ViewPlugin,
+	ViewUpdate,
+} from "@codemirror/view";
+import { SheetChord } from "../chordsUtils";
+import { ChordTooltip } from "./chordTooltip";
+import { ChordSheetsSettings } from "../chordSheetsSettings";
+import { ChangeSet, ChangeSpec } from "@codemirror/state";
 import {
 	ChordBlocksState,
 	chordBlocksStateField,
@@ -11,160 +17,229 @@ import {
 	chordSheetViewportUpdateEffect,
 	finishParsingIncompleteBlockEffect,
 	IChordBlockRangeValue,
-	ifDebug
+	ifDebug,
 } from "./chordBlocksStateField";
 
-import {ChordToken, isChordToken} from "../sheet-parsing/tokens";
+import { ChordToken, isChordToken } from "../sheet-parsing/tokens";
 
 export interface TransposeEventDetail {
-	direction: "up" | "down",
+	direction: "up" | "down";
 	blockDef: {
-		from: number
-		to: number
-		value: IChordBlockRangeValue
-	}
+		from: number;
+		to: number;
+		value: IChordBlockRangeValue;
+	};
 }
 
 export interface EnharmonicToggleEventDetail {
 	blockDef: {
-		from: number
-		to: number
-		value: IChordBlockRangeValue
-	}
+		from: number;
+		to: number;
+		value: IChordBlockRangeValue;
+	};
 }
-
 
 export interface ChordSymbolRange {
-	from: number,
-	to: number,
-	chord: SheetChord,
-	chordSymbol: string
+	from: number;
+	to: number;
+	chord: SheetChord;
+	chordSymbol: string;
 }
 
-export const chordSheetEditorPlugin = () => ViewPlugin.fromClass(ChordSheetsViewPlugin, {
-	eventHandlers: {
-		click: function (event: MouseEvent, view: EditorView) {
-			const target = event.target as HTMLElement;
-			ifDebug(view.state, () => console.log(view.posAtDOM(target)));
-			if (target.nodeName === "BUTTON" && target.classList.contains("chord-sheet-transpose")) {
-				event.stopPropagation();
-				const pos = view.posAtDOM(target);
-				const chordBlockRange = view.state.field(chordBlocksStateField).ranges.iter(pos);
-				if (chordBlockRange.value) {
-					const transposeEvent = new CustomEvent<TransposeEventDetail>('chord-sheet-transpose', {
-						detail: {
-							direction: target.classList.contains("chord-sheet-transpose-up") ? "up" : "down",
-							blockDef: {
-								from: chordBlockRange.from,
-								to: chordBlockRange.to,
-								value: chordBlockRange.value
-							}
-						}
-					});
-					window.dispatchEvent(transposeEvent);
-				}
-			} else if (target.nodeName === "BUTTON" && target.classList.contains("chord-sheet-enharmonic-toggle")) {
-				event.stopPropagation();
-				const pos = view.posAtDOM(target);
-				const chordBlockRange = view.state.field(chordBlocksStateField).ranges.iter(pos);
-				if (chordBlockRange.value) {
-					const enharmonicToggleEvent = new CustomEvent<EnharmonicToggleEventDetail>('chord-sheet-enharmonic-toggle', {
-						detail: {
-							blockDef: {
-								from: chordBlockRange.from,
-								to: chordBlockRange.to,
-								value: chordBlockRange.value
-							}
-						}
-					});
-					window.dispatchEvent(enharmonicToggleEvent);
-				}
-			}
-		},
-        
-		mousemove: function (event: MouseEvent, view: EditorView) {
-			const {showChordDiagramsOnHover, useChromaticChordColors} = view.state.facet(chordSheetsConfigFacet);
-			if (
-				view.state.field(chordBlocksStateField).ranges.size === 0
-				|| !(showChordDiagramsOnHover === "always" || showChordDiagramsOnHover === "edit")
-			) {
-				return;
-			}
-
-			const pos = view.posAtCoords({x: event.clientX, y: event.clientY});
-			let isOverEl = false;
-			if (pos) {
-				view.state.field(chordBlocksStateField).chordDecos.between(pos, pos, (_from, _to, deco) => {
-					if (!deco.spec.token) {
-						return;
+export const chordSheetEditorPlugin = () =>
+	ViewPlugin.fromClass(ChordSheetsViewPlugin, {
+		eventHandlers: {
+			click: function (event: MouseEvent, view: EditorView) {
+				const target = event.target as HTMLElement;
+				ifDebug(view.state, () => console.log(view.posAtDOM(target)));
+				if (
+					target.nodeName === "BUTTON" &&
+					target.classList.contains("chord-sheet-transpose")
+				) {
+					event.stopPropagation();
+					const pos = view.posAtDOM(target);
+					const chordBlockRange = view.state
+						.field(chordBlocksStateField)
+						.ranges.iter(pos);
+					if (chordBlockRange.value) {
+						const transposeEvent =
+							new CustomEvent<TransposeEventDetail>(
+								"chord-sheet-transpose",
+								{
+									detail: {
+										direction: target.classList.contains(
+											"chord-sheet-transpose-up",
+										)
+											? "up"
+											: "down",
+										blockDef: {
+											from: chordBlockRange.from,
+											to: chordBlockRange.to,
+											value: chordBlockRange.value,
+										},
+									},
+								},
+							);
+						window.dispatchEvent(transposeEvent);
 					}
+				} else if (
+					target.nodeName === "BUTTON" &&
+					target.classList.contains("chord-sheet-enharmonic-toggle")
+				) {
+					event.stopPropagation();
+					const pos = view.posAtDOM(target);
+					const chordBlockRange = view.state
+						.field(chordBlocksStateField)
+						.ranges.iter(pos);
+					if (chordBlockRange.value) {
+						const enharmonicToggleEvent =
+							new CustomEvent<EnharmonicToggleEventDetail>(
+								"chord-sheet-enharmonic-toggle",
+								{
+									detail: {
+										blockDef: {
+											from: chordBlockRange.from,
+											to: chordBlockRange.to,
+											value: chordBlockRange.value,
+										},
+									},
+								},
+							);
+						window.dispatchEvent(enharmonicToggleEvent);
+					}
+				}
+			},
 
-					if (this.currentDeco != deco) {
-						this.tooltip.hide();
-						if (isChordToken(deco.spec.token)) {
-							const chordToken: ChordToken = deco.spec.token;
-							const dom = view.domAtPos(pos);
-							let el = dom.node.parentElement;
-							while (el && !el.classList.contains("chord-sheet-chord")) {
-								el = el.parentElement;
+			mousemove: function (event: MouseEvent, view: EditorView) {
+				const { showChordDiagramsOnHover, useChromaticChordColors } =
+					view.state.facet(chordSheetsConfigFacet);
+				if (
+					view.state.field(chordBlocksStateField).ranges.size === 0 ||
+					!(
+						showChordDiagramsOnHover === "always" ||
+						showChordDiagramsOnHover === "edit"
+					)
+				) {
+					return;
+				}
+
+				const pos = view.posAtCoords({
+					x: event.clientX,
+					y: event.clientY,
+				});
+				let isOverEl = false;
+				if (pos) {
+					view.state
+						.field(chordBlocksStateField)
+						.chordDecos.between(pos, pos, (_from, _to, deco) => {
+							if (!deco.spec.token) {
+								return;
 							}
-							if (el) {
-								// Check if the mouse is actually over the element "el". This is necessary because domAtCoords
-								// seems to also return the element when the coords are before or after the end of the line.
-								const elRect = el.getBoundingClientRect();
-								isOverEl = event.clientX >= elRect.left && event.clientX <= elRect.right && event.clientY >= elRect.top && event.clientY <= elRect.bottom;
 
-								if (isOverEl) {
-									const currentBlock = view.state.field(chordBlocksStateField).ranges.iter(pos);
-									const diagramWidth = view.state.facet(chordSheetsConfigFacet).diagramWidth;
-									if (currentBlock.value) {
-										this.currentDeco = deco;
-										this.currentEl = el;
-										this.tooltip.show(
-											el,
-											currentBlock.value.instrument,
-											chordToken,
-											diagramWidth,
-											useChromaticChordColors,
-											currentBlock.value.positionSelections,
-										);
+							if (this.currentDeco != deco) {
+								this.tooltip.hide();
+								if (isChordToken(deco.spec.token)) {
+									const chordToken: ChordToken =
+										deco.spec.token;
+									const dom = view.domAtPos(pos);
+									let el = dom.node.parentElement;
+									while (
+										el &&
+										!el.classList.contains(
+											"chord-sheet-chord",
+										)
+									) {
+										el = el.parentElement;
+									}
+									if (el) {
+										// Check if the mouse is actually over the element "el". This is necessary because domAtCoords
+										// seems to also return the element when the coords are before or after the end of the line.
+										const elRect =
+											el.getBoundingClientRect();
+										isOverEl =
+											event.clientX >= elRect.left &&
+											event.clientX <= elRect.right &&
+											event.clientY >= elRect.top &&
+											event.clientY <= elRect.bottom;
+
+										if (isOverEl) {
+											const currentBlock = view.state
+												.field(chordBlocksStateField)
+												.ranges.iter(pos);
+											const diagramWidth =
+												view.state.facet(
+													chordSheetsConfigFacet,
+												).diagramWidth;
+											if (currentBlock.value) {
+												this.currentDeco = deco;
+												this.currentEl = el;
+												this.tooltip.show(
+													el,
+													currentBlock.value
+														.instrument,
+													chordToken,
+													diagramWidth,
+													useChromaticChordColors,
+													currentBlock.value
+														.positionSelections,
+													currentBlock.value
+														.capoSelection,
+												);
+											}
+										}
 									}
 								}
 							}
+							return false;
+						});
+
+					if (this.currentDeco && !isOverEl) {
+						const tooltipRect =
+							this.tooltip.popper.getBoundingClientRect();
+						const targetRect =
+							this.currentEl?.getBoundingClientRect();
+
+						if (targetRect) {
+							const isMouseOverTooltip =
+								event.clientX >= tooltipRect.left &&
+								event.clientX <= tooltipRect.right &&
+								event.clientY >= tooltipRect.top &&
+								event.clientY <= tooltipRect.bottom;
+
+							const isMouseBetweenTargetAndTooltipHorizontal =
+								event.clientY >= targetRect.top &&
+								event.clientY <= tooltipRect.bottom &&
+								((event.clientX >= targetRect.left &&
+									event.clientX <= tooltipRect.left) ||
+									(event.clientX <= targetRect.right &&
+										event.clientX >= tooltipRect.right));
+
+							const isMouseBetweenTargetAndTooltipVertical =
+								event.clientX >= targetRect.left &&
+								event.clientX <= tooltipRect.right &&
+								((event.clientY >= targetRect.top &&
+									event.clientY <= tooltipRect.top) ||
+									(event.clientY <= targetRect.bottom &&
+										event.clientY >= tooltipRect.bottom));
+
+							if (
+								isMouseOverTooltip ||
+								isMouseBetweenTargetAndTooltipHorizontal ||
+								isMouseBetweenTargetAndTooltipVertical
+							) {
+								// Do not hide tooltip if the mouse is over the tooltip itself or if it is between the target element and tooltip.
+								return;
+							}
 						}
 
+						this.currentDeco = null;
+						this.currentEl = null;
+						this.tooltip.hide();
 					}
-					return false;
-				});
-
-				if (this.currentDeco && !isOverEl) {
-					const tooltipRect = this.tooltip.popper.getBoundingClientRect();
-					const targetRect = this.currentEl?.getBoundingClientRect();
-
-					if (targetRect) {
-						const isMouseOverTooltip = event.clientX >= tooltipRect.left && event.clientX <= tooltipRect.right
-							&& event.clientY >= tooltipRect.top && event.clientY <= tooltipRect.bottom;
-
-						const isMouseBetweenTargetAndTooltipHorizontal = (event.clientY >= targetRect.top && event.clientY <= tooltipRect.bottom)
-							&& ((event.clientX >= targetRect.left && event.clientX <= tooltipRect.left) || (event.clientX <= targetRect.right && event.clientX >= tooltipRect.right));
-
-						const isMouseBetweenTargetAndTooltipVertical = (event.clientX >= targetRect.left && event.clientX <= tooltipRect.right)
-							&& ((event.clientY >= targetRect.top && event.clientY <= tooltipRect.top) || (event.clientY <= targetRect.bottom && event.clientY >= tooltipRect.bottom));
-
-						if (isMouseOverTooltip || isMouseBetweenTargetAndTooltipHorizontal || isMouseBetweenTargetAndTooltipVertical) {
-							// Do not hide tooltip if the mouse is over the tooltip itself or if it is between the target element and tooltip.
-							return;
-						}
-					}
-
-					this.currentDeco = null;
-					this.currentEl = null;
-					this.tooltip.hide();
 				}
-			}
-		}
-	}
-});
+			},
+		},
+	});
 
 export class ChordSheetsViewPlugin implements PluginValue {
 	currentDeco: Decoration | null;
@@ -175,36 +250,46 @@ export class ChordSheetsViewPlugin implements PluginValue {
 		this.tooltip = new ChordTooltip(view.dom);
 	}
 
-
 	getChordSheetBlockAtCursor(): {
-		from: number,
-		to: number,
-		value: IChordBlockRangeValue
+		from: number;
+		to: number;
+		value: IChordBlockRangeValue;
 	} | null {
 		const cursorPos = this.view.state.selection.main.from;
 
 		let from: number | null = null;
 		let to: number | null = null;
 		let blockValue: IChordBlockRangeValue | null = null;
-		this.view.state.field(chordBlocksStateField).ranges.between(cursorPos, cursorPos, (blockFrom, blockTo, value) => {
-			from = blockFrom;
-			to = blockTo;
-			blockValue = {
-				partiallyParsed: value.partiallyParsed,
-				instrument: value.instrument,
-				positionSelections: value.positionSelections,
-			};
-			return false;
-		});
+		this.view.state
+			.field(chordBlocksStateField)
+			.ranges.between(
+				cursorPos,
+				cursorPos,
+				(blockFrom, blockTo, value) => {
+					from = blockFrom;
+					to = blockTo;
+					blockValue = {
+						partiallyParsed: value.partiallyParsed,
+						instrument: value.instrument,
+						positionSelections: value.positionSelections,
+						capoSelection: value.capoSelection,
+					};
+					return false;
+				},
+			);
 
 		if (from !== null && to !== null && blockValue !== null) {
-			return {from, to, value: blockValue};
+			return { from, to, value: blockValue };
 		}
 
 		return null;
 	}
 
-	async getChordSymbolRangesForBlock(blockDef: { from: number, to: number, value: IChordBlockRangeValue }): Promise<ChordSymbolRange[]>  {
+	async getChordSymbolRangesForBlock(blockDef: {
+		from: number;
+		to: number;
+		value: IChordBlockRangeValue;
+	}): Promise<ChordSymbolRange[]> {
 		const chordRanges: ChordSymbolRange[] = [];
 
 		let chordBlocksState: ChordBlocksState;
@@ -213,27 +298,32 @@ export class ChordSheetsViewPlugin implements PluginValue {
 			chordBlocksState = await new Promise<ChordBlocksState>((resolve) =>
 				this.view.dispatch({
 					effects: finishParsingIncompleteBlockEffect.of({
-						blockDef, callback: resolve
-					})
-				}));
+						blockDef,
+						callback: resolve,
+					}),
+				}),
+			);
 			chordBlockEnd = chordBlocksState.ranges.iter(blockDef.from).to;
-
 		} else {
 			chordBlocksState = this.view.state.field(chordBlocksStateField);
 			chordBlockEnd = blockDef.to;
 		}
 
-		chordBlocksState.chordDecos.between(blockDef.from, chordBlockEnd, (from, _to, value) => {
-			if (value.spec.type === "chord") {
-				const chordToken = value.spec.token as ChordToken;
-				chordRanges.push({
-					from: from + chordToken.chordSymbol.range[0],
-					to: from + chordToken.chordSymbol.range[1],
-					chordSymbol: chordToken.chordSymbol.value,
-					chord: chordToken.chord
-				});
-			}
-		});
+		chordBlocksState.chordDecos.between(
+			blockDef.from,
+			chordBlockEnd,
+			(from, _to, value) => {
+				if (value.spec.type === "chord") {
+					const chordToken = value.spec.token as ChordToken;
+					chordRanges.push({
+						from: from + chordToken.chordSymbol.range[0],
+						to: from + chordToken.chordSymbol.range[1],
+						chordSymbol: chordToken.chordSymbol.value,
+						chord: chordToken.chord,
+					});
+				}
+			},
+		);
 
 		return chordRanges;
 	}
@@ -242,7 +332,6 @@ export class ChordSheetsViewPlugin implements PluginValue {
 		return this.view.state.field(chordBlocksStateField).ranges.size > 0;
 	}
 
-
 	update(update: ViewUpdate) {
 		if (update.docChanged) {
 			// document changes are handled by the state field
@@ -250,15 +339,23 @@ export class ChordSheetsViewPlugin implements PluginValue {
 		}
 
 		if (update.viewportChanged) {
-			const {parsedUntil} = update.state.field(chordBlocksStateField);
-			ifDebug(update.state, () => console.log("Viewport to: " + update.view.viewport.to, "parsedUntil", parsedUntil.from));
+			const { parsedUntil } = update.state.field(chordBlocksStateField);
+			ifDebug(update.state, () =>
+				console.log(
+					"Viewport to: " + update.view.viewport.to,
+					"parsedUntil",
+					parsedUntil.from,
+				),
+			);
 
 			if (update.view.viewport.to > parsedUntil.from) {
 				ifDebug(update.state, () => console.log("Out of parse"));
-				setTimeout(() => update.view.dispatch({effects: chordSheetViewportUpdateEffect.of()}));
-
+				setTimeout(() =>
+					update.view.dispatch({
+						effects: chordSheetViewportUpdateEffect.of(),
+					}),
+				);
 			}
-
 		}
 	}
 
@@ -269,11 +366,15 @@ export class ChordSheetsViewPlugin implements PluginValue {
 
 	updateSettings(settings: ChordSheetsSettings) {
 		this.view.dispatch({
-			effects: chordSheetsConfig.reconfigure(chordSheetsConfigFacet.of({...settings}))
+			effects: chordSheetsConfig.reconfigure(
+				chordSheetsConfigFacet.of({ ...settings }),
+			),
 		});
 	}
 
 	applyChanges(changes: ChangeSpec[]) {
-		this.view.dispatch({changes: ChangeSet.of(changes, this.view.state.doc.length)});
+		this.view.dispatch({
+			changes: ChangeSet.of(changes, this.view.state.doc.length),
+		});
 	}
 }
