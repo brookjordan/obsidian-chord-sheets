@@ -3,6 +3,7 @@ import {
 	parseBeatLabels,
 	parseStandaloneBpm,
 	parseStrummingPattern,
+	strumDurationIsDotted,
 	strumDurationClass,
 	strumDurationUnits,
 	strumSlotDurationMs,
@@ -86,14 +87,21 @@ describe("Strumming patterns", () => {
 	test("classifies short, medium, and long strums", () => {
 		expect(strumDurationClass(1)).toBe("short");
 		expect(strumDurationClass(2)).toBe("medium");
-		expect(strumDurationClass(3)).toBe("long");
+		expect(strumDurationClass(3)).toBe("medium");
+		expect(strumDurationClass(4)).toBe("long");
 	});
 
-	test("lays out strums on one, two, or four grid units", () => {
+	test("preserves the number of grid units before the next stroke", () => {
 		expect(strumDurationUnits(1)).toBe(1);
 		expect(strumDurationUnits(2)).toBe(2);
-		expect(strumDurationUnits(3)).toBe(4);
+		expect(strumDurationUnits(3)).toBe(3);
 		expect(strumDurationUnits(4)).toBe(4);
+	});
+
+	test("marks a three-slot strum as dotted", () => {
+		expect(strumDurationIsDotted(2)).toBe(false);
+		expect(strumDurationIsDotted(3)).toBe(true);
+		expect(strumDurationIsDotted(4)).toBe(false);
 	});
 
 	test("plays eighth-note slots at 120 BPM", () => {

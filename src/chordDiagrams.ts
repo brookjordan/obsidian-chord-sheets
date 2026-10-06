@@ -8,6 +8,8 @@ import { INSTRUMENTS } from "./instruments";
 import { ChordBox } from "@chordbook/charts";
 import { ChordDef, generateChord } from "./chordGenerator";
 import { ChordToken } from "./sheet-parsing/tokens";
+import { CapoSelection } from "./capoControls";
+import { playChordPosition, soundingChordName } from "./chordAudio";
 
 type ChordBoxParams = Parameters<ChordBox["draw"]>[0];
 export type ChordPositionSelections = Map<string, number>;
@@ -176,6 +178,7 @@ export function renderChordDiagram({
 	chordName,
 	chordColor,
 	width,
+	capoSelection,
 }: {
 	containerEl: HTMLElement;
 	userDefinedChord: UserDefinedChord | undefined;
@@ -187,6 +190,7 @@ export function renderChordDiagram({
 	chordName: string;
 	chordColor: string | null;
 	width: number;
+	capoSelection?: CapoSelection;
 }) {
 	const box = containerEl.querySelector(".chord-sheet-chord-box");
 	if (!box) {
@@ -195,7 +199,9 @@ export function renderChordDiagram({
 
 	box.replaceChildren();
 
-	box.appendChild(makeChordNameEl(chordName, chordColor));
+	box.appendChild(
+		makeChordNameEl(chordName, chordColor, capoSelection?.fret ?? 0),
+	);
 
 	const chordDiagram = document.createElement("div");
 	box.appendChild(chordDiagram);
@@ -209,17 +215,39 @@ export function renderChordDiagram({
 	updateChordPosition(containerEl, numPositions, position);
 }
 
-function makeChordNameEl(chordName: string, chordColor: string | null) {
+function makeChordNameEl(
+	chordName: string,
+	chordColor: string | null,
+	capo = 0,
+) {
 	const chordNameEl = document.createElement("div");
 	chordNameEl.classList.add(
 		"chord-sheet-chord-name",
 		"chord-sheet-chord-highlight",
 	);
-	chordNameEl.innerText = chordName;
+	const writtenChord = document.createElement("span");
+	writtenChord.textContent = chordName;
+	chordNameEl.appendChild(writtenChord);
+	updateSoundingChordName(chordNameEl, chordName, capo);
 	if (chordColor) {
 		chordNameEl.style.setProperty("--chord-note-color", chordColor);
 	}
 	return chordNameEl;
+}
+
+function updateSoundingChordName(
+	chordNameEl: HTMLElement,
+	chordName: string,
+	capo: number,
+): void {
+	chordNameEl.querySelector(".chord-sheet-sounding-chord")?.remove();
+	if (capo === 0) {
+		return;
+	}
+	const sounding = document.createElement("span");
+	sounding.className = "chord-sheet-sounding-chord";
+	sounding.textContent = soundingChordName(chordName, capo);
+	chordNameEl.appendChild(sounding);
 }
 
 function makeChordBox(
@@ -247,6 +275,7 @@ function renderMissingDiagramNotice(
 	numFrets: number,
 	width: number,
 	chordColor: string | null,
+	capo = 0,
 ) {
 	const emptyFretboardEl = document.createElement("div");
 	emptyFretboardEl.classList.add("chord-sheet-no-diagram");
@@ -274,7 +303,7 @@ function renderMissingDiagramNotice(
 	);
 	emptyFretboardEl.setAttribute("data-tooltip-position", "top");
 
-	box.append(makeChordNameEl(chordName, chordColor), emptyFretboardEl);
+	box.append(makeChordNameEl(chordName, chordColor, capo), emptyFretboardEl);
 }
 
 function updateChordPosition(
@@ -328,12 +357,25 @@ export function makeChordDiagram(
 	position = 0,
 	useChromaticChordColors = true,
 	positionSelections?: ChordPositionSelections,
+	capoSelection?: CapoSelection,
 ) {
 	const containerEl = document.createElement("div");
 	containerEl.addClass("chord-sheet-chord-diagram");
 	const chordBox: HTMLDivElement = document.createElement("div");
 	chordBox.addClass("chord-sheet-chord-box");
 	containerEl.appendChild(chordBox);
+	capoSelection?.events.addEventListener("change", () => {
+		const chordNameEl = chordBox.querySelector<HTMLElement>(
+			".chord-sheet-chord-name",
+		);
+		if (chordNameEl) {
+			updateSoundingChordName(
+				chordNameEl,
+				chordToken.chordSymbol.value,
+				capoSelection.fret,
+			);
+		}
+	});
 
 	const instrumentConfig = INSTRUMENTS[instrument];
 	const numStrings = instrumentConfig.strings;
@@ -360,6 +402,7 @@ export function makeChordDiagram(
 			chordName: chordToken.chordSymbol.value,
 			chordColor,
 			width: width,
+			capoSelection,
 		});
 	} else {
 		const generatedChord = generateChord(chordToken, instrument);
@@ -371,6 +414,7 @@ export function makeChordDiagram(
 				numFrets,
 				width,
 				chordColor,
+				capoSelection?.fret ?? 0,
 			);
 			return containerEl;
 		}
@@ -383,6 +427,27 @@ export function makeChordDiagram(
 			Math.max(savedPosition ?? position, 0),
 			numPositions - 1,
 		);
+		chordBox.addClass("chord-sheet-chord-audition");
+		chordBox.tabIndex = 0;
+		chordBox.setAttribute("role", "button");
+		chordBox.setAttribute(
+			"aria-label",
+			`Play ${chordToken.chordSymbol.value}`,
+		);
+		const playCurrentPosition = () => {
+			void playChordPosition(
+				instrument,
+				generatedChord.positions[currentPosition],
+				capoSelection?.fret ?? 0,
+			);
+		};
+		chordBox.addEventListener("click", playCurrentPosition);
+		chordBox.addEventListener("keydown", (event) => {
+			if (event.key === "Enter" || event.key === " ") {
+				event.preventDefault();
+				playCurrentPosition();
+			}
+		});
 		if (numPositions > 0) {
 			const positionChooser = Object.assign(
 				document.createElement("div"),
@@ -461,6 +526,7 @@ export function makeChordDiagram(
 						chordName: chordToken.chordSymbol.value,
 						chordColor,
 						width: width,
+						capoSelection,
 					});
 				}
 			});
@@ -482,6 +548,7 @@ export function makeChordDiagram(
 						chordName: chordToken.chordSymbol.value,
 						chordColor,
 						width: width,
+						capoSelection,
 					});
 				}
 			});
@@ -498,6 +565,7 @@ export function makeChordDiagram(
 			chordName: chordToken.chordSymbol.value,
 			chordColor,
 			width: width,
+			capoSelection,
 		});
 	}
 
@@ -511,6 +579,7 @@ export function makeChordOverview(
 	width?: number,
 	useChromaticChordColors = true,
 	positionSelections?: ChordPositionSelections,
+	capoSelection?: CapoSelection,
 ) {
 	for (const chordToken of chordTokens) {
 		container.appendChild(
@@ -521,6 +590,7 @@ export function makeChordOverview(
 				0,
 				useChromaticChordColors,
 				positionSelections,
+				capoSelection,
 			),
 		);
 	}
@@ -528,4 +598,5 @@ export function makeChordOverview(
 	container.dataset.instrument = instrument;
 	container.dataset.diagramWidth = `${width}`;
 	container.dataset.chromaticChordColors = `${useChromaticChordColors}`;
+	container.dataset.capoFret = `${capoSelection?.sourceFret ?? ""}`;
 }

@@ -125,11 +125,12 @@ export function displayStrums(steps: StrumStep[]): DisplayStrum[] {
 	return display;
 }
 
-export function strumDurationUnits(duration: number): 1 | 2 | 4 {
-	if (duration >= 3) {
-		return 4;
-	}
-	return duration === 2 ? 2 : 1;
+export function strumDurationUnits(duration: number): number {
+	return Math.max(1, duration);
+}
+
+export function strumDurationIsDotted(duration: number): boolean {
+	return duration === 3;
 }
 
 export function renderStrummingPattern(pattern: StrummingPattern): HTMLElement {
@@ -187,10 +188,10 @@ export function renderStrummingPattern(pattern: StrummingPattern): HTMLElement {
 export function strumDurationClass(
 	duration: number,
 ): "short" | "medium" | "long" {
-	if (duration >= 3) {
+	if (duration >= 4) {
 		return "long";
 	}
-	return duration === 2 ? "medium" : "short";
+	return duration >= 2 ? "medium" : "short";
 }
 
 export function strumSlotDurationMs(bpm = STRUMMING_BPM): number {
@@ -494,9 +495,9 @@ export function makeStrumTail(
 	const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
 	path.setAttribute(
 		"d",
-		terminal || duration >= 3
+		terminal || duration >= 4
 			? "M10 1V13"
-			: duration === 2
+			: duration >= 2
 				? `M10 1V13H${width - 1}`
 				: `M10 1V13H${width - 1}M10 8H${width - 1}`,
 	);
@@ -505,6 +506,19 @@ export function makeStrumTail(
 	path.setAttribute("stroke-width", "2");
 	path.setAttribute("vector-effect", "non-scaling-stroke");
 	svg.appendChild(path);
+	if (strumDurationIsDotted(duration) && !terminal) {
+		const dot = document.createElementNS(
+			"http://www.w3.org/2000/svg",
+			"path",
+		);
+		dot.setAttribute("d", "M20 3h0");
+		dot.setAttribute("fill", "none");
+		dot.setAttribute("stroke", "currentColor");
+		dot.setAttribute("stroke-width", "3");
+		dot.setAttribute("stroke-linecap", "round");
+		dot.setAttribute("vector-effect", "non-scaling-stroke");
+		svg.appendChild(dot);
+	}
 	return svg;
 }
 

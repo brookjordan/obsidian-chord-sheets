@@ -17,19 +17,21 @@ import {
 } from "./sheet-parsing/tokens";
 import { tokenizeLine } from "./sheet-parsing/tokenizeLine";
 import {
-	parseBeatLabels,
 	parseRepeatMarker,
-	parseStandaloneBpm,
-	parseStrummingPattern,
 	renderStrummingPattern,
 	stopStrummingPlaybackWithin,
-	withBeatLabels,
-	withBpm,
 } from "./strummingPatterns";
+import { parseStrummingBlock } from "./strummingBlock";
+import {
+	CapoSelection,
+	makeCapoControls,
+	makeCapoSelection,
+} from "./capoControls";
 
 export class ChordBlockPostProcessorView extends MarkdownRenderChild {
 	source: string;
 	private readonly positionSelections = new Map<string, number>();
+	private capoSelection: CapoSelection = makeCapoSelection(null);
 
 	constructor(
 		containerEl: HTMLElement,
@@ -78,48 +80,40 @@ export class ChordBlockPostProcessorView extends MarkdownRenderChild {
 
 		const chordTokens: ChordToken[] = [];
 		const lines = this.source.split("\n");
-		const hasStrummingPattern = lines.some(
-			(line) => parseStrummingPattern(line) !== null,
-		);
-		const blockBpm = hasStrummingPattern
-			? (lines
-					.map(parseStandaloneBpm)
-					.find((bpm): bpm is number => bpm !== null) ?? null)
-			: null;
+		const strummingLines = parseStrummingBlock(lines);
+		const capoLine = strummingLines.find((line) => line.type === "capo");
+		const sourceCapo = capoLine?.type === "capo" ? capoLine.fret : null;
+		this.capoSelection = makeCapoSelection(sourceCapo, this.capoSelection);
+		let capoControlsRendered = false;
 		let currentIndex = 0;
 		for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
 			const line = lines[lineNumber];
-			if (hasStrummingPattern && parseStandaloneBpm(line) !== null) {
+			const strummingLine = strummingLines[lineNumber];
+			if (strummingLine.type === "capo") {
+				if (!capoControlsRendered) {
+					const lineDiv = codeEl.createDiv({
+						cls: "chord-sheet-chord-line",
+					});
+					lineDiv.appendChild(makeCapoControls(this.capoSelection));
+					capoControlsRendered = true;
+				}
+				currentIndex += line.length + 1;
+				continue;
+			}
+			if (
+				strummingLine.type === "bpm" ||
+				strummingLine.type === "beat-labels"
+			) {
 				currentIndex += line.length + 1;
 				continue;
 			}
 			const lineDiv = codeEl.createDiv({
 				cls: "chord-sheet-chord-line",
 			});
-			const parsedPattern = parseStrummingPattern(line);
-			const pattern = parsedPattern
-				? withBpm(parsedPattern, blockBpm)
-				: null;
-			const parsedNextPattern = parseStrummingPattern(
-				lines[lineNumber + 1] ?? "",
-			);
-			const nextPattern = parsedNextPattern
-				? withBpm(parsedNextPattern, blockBpm)
-				: null;
-			const beatLabels = parseBeatLabels(line);
-
-			if (beatLabels && nextPattern) {
+			if (strummingLine.type === "pattern") {
 				lineDiv.appendChild(
-					renderStrummingPattern(
-						withBeatLabels(nextPattern, beatLabels),
-					),
+					renderStrummingPattern(strummingLine.pattern),
 				);
-				currentIndex += line.length + lines[lineNumber + 1].length + 2;
-				lineNumber++;
-				continue;
-			}
-			if (pattern) {
-				lineDiv.appendChild(renderStrummingPattern(pattern));
 				currentIndex += line.length + 1;
 				continue;
 			}
@@ -324,6 +318,7 @@ export class ChordBlockPostProcessorView extends MarkdownRenderChild {
 				diagramWidth,
 				useChromaticChordColors,
 				this.positionSelections,
+				this.capoSelection,
 			);
 			this.containerEl.prepend(overviewContainerEl);
 		}
@@ -332,6 +327,7 @@ export class ChordBlockPostProcessorView extends MarkdownRenderChild {
 	private attachChordDiagram(token: ChordToken, tokenEl: HTMLElement) {
 		const popper = document.createElement("div");
 		const { instrument, settings } = this;
+		const { positionSelections, capoSelection } = this;
 		const { diagramWidth, useChromaticChordColors } = settings;
 
 		popper.classList.add("chord-sheet-chord-popup");
@@ -350,7 +346,8 @@ export class ChordBlockPostProcessorView extends MarkdownRenderChild {
 						diagramWidth,
 						0,
 						useChromaticChordColors,
-						this.positionSelections,
+						positionSelections,
+						capoSelection,
 					),
 				);
 			},
